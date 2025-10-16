@@ -1,0 +1,182 @@
+<script>
+// Coordonnées exactes des cases sur le plateau (en px ou %) pour centrer les pions
+const positionsPlateau = [
+  {x:50, y:50},   // 1
+  {x:150, y:50},  // 2
+  {x:250, y:50},  // 3
+  {x:350, y:50},  // 4
+  {x:450, y:50},  // 5
+  {x:450, y:150}, // 6
+  {x:450, y:250}, // 7
+  {x:450, y:350}, // 8
+  {x:450, y:450}, // 9
+  {x:350, y:450}, // 10
+  {x:250, y:450}, // 11
+  {x:150, y:450}, // 12
+  {x:50, y:450},  // 13
+  {x:50, y:350},  // 14
+  {x:50, y:250},  // 15
+  {x:50, y:150},  // 16
+  {x:150, y:150}, // 17
+  {x:250, y:150}, // 18
+  {x:350, y:150}, // 19
+  {x:350, y:250}, // 20
+  {x:350, y:350}, // 21
+  {x:250, y:350}, // 22
+  {x:150, y:350}, // 23
+  {x:150, y:250}, // 24
+  {x:250, y:250}  // 25 centre trophée
+];
+
+// Actions, popups et sons par case
+const actions = [
+  {text:"Tout le monde se sert à boire !", popup:"Santé !", sound:"verre_trinque.mp3"},
+  {text:"Fredonne la chanson que te souffle le joueur à ta droite...", popup:"Met l'ambiance !", sound:"ambiance.mp3"},
+  {text:"Embrasse le joueur à ta droite", popup:"Smack", sound:"bisous.mp3"},
+  {text:"Pose une colle au joueur de ton choix...", popup:"Culture G", sound:"ambiance.mp3"},
+  {text:"Tout le monde trinque", popup:"Tchin tchin", sound:"verre_trinque.mp3"},
+  {text:"Echange un vêtement avec le joueur à ta gauche et faites un selfie", popup:"Echange", sound:"ambiance.mp3"},
+  {text:"Mime ce que te souffle le joueur à droite...", popup:"Action !", sound:"clap_cinema.mp3"},
+  {text:"Choisi le joueur qui doit te faire un massage", popup:"Zen", sound:"relax.mp3"},
+  {text:"Echange ton verre avec le joueur à ta droite", popup:"C'est bon... ou pas !", sound:"lounge_bar.mp3"},
+  {text:"Désigne ton joueur favoris", popup:"Love", sound:"romantic.mp3"},
+  {text:"Retour à la case départ !", popup:"AÏE", sound:"chute.mp3"},
+  {text:"Dessine ce que te souffle le joueur à ta gauche...", popup:"Draw", sound:"ambiance.mp3"},
+  {text:"Pose une colle au joueur de ton choix...", popup:"Culture G", sound:"ambiance.mp3"},
+  {text:"Embrasse le joueur à ta gauche", popup:"Smak", sound:"bisous.mp3"},
+  {text:"Echange un vêtement avec le joueur à ta droite et faites un selfie", popup:"Echange", sound:"ambiance.mp3"},
+  {text:"Passe ton tour ! Et bois un coup tant qu'à faire :)", popup:"Stop !", sound:"frein.mp3"},
+  {text:"Echange ton verre avec le joueur à ta gauche", popup:"C'est bon... ou pas !", sound:"lounge_bar.mp3"},
+  {text:"Dessine ce que te souffle le joueur à ta droite...", popup:"Draw", sound:"ambiance.mp3"},
+  {text:"Avance de trois cases ... je pense que tu avais soif :)", popup:"Tchou tchou glou glou", sound:"sifflement_train.mp3"},
+  {text:"Fredonne la chanson que te souffle le joueur à ta gauche...", popup:"Met l'ambiance !", sound:"fredonement.mp3"},
+  {text:"Pose une question osée au joueur de ton choix...", popup:"Indiscretions", sound:"coquin.mp3"},
+  {text:"Cul sec !", popup:"Glou glou", sound:"bouteille_glou.mp3"},
+  {text:"Mime ce que te souffle le joueur à ta gauche...", popup:"Action !", sound:"clap_cinema.mp3"},
+  {text:"Pose une colle au joueur de ton choix...", popup:"Culture G", sound:"ambiance.mp3"},
+  {text:"Tu as gagné le droit de demander le service que tu veux...", popup:"Winner !!!", sound:"trophee.mp3"}
+];
+
+// Initialisation des pions
+let pawns = [];
+let positions = [];
+let currentPlayer = 0;
+let numPlayers = 0;
+
+// Références HTML
+const plateau = document.getElementById('plateau');
+const startBtn = document.getElementById('start');
+const resetBtn = document.getElementById('reset');
+const rollBtn = document.getElementById('roll');
+const volumeBtn = document.getElementById('volume');
+const diceDisplay = document.getElementById('dice');
+const bandeau = document.getElementById('bandeau');
+const popup = document.getElementById('popup');
+const bgMusic = new Audio('musique_chill.mp3');
+
+// Création des pions sur le plateau
+function initPawns(){
+  pawns.forEach(p=>p.remove());
+  pawns=[];
+  positions=[];
+  for(let i=0;i<numPlayers;i++){
+    const pawn = document.createElement('div');
+    pawn.classList.add('pawn');
+    pawn.style.backgroundColor = ['red','blue','green','orange','purple','pink'][i];
+    pawn.style.position='absolute';
+    pawn.style.width='30px';
+    pawn.style.height='30px';
+    pawn.style.borderRadius='50%';
+    pawn.style.display='flex';
+    pawn.style.alignItems='center';
+    pawn.style.justifyContent='center';
+    pawn.textContent = i+1;
+    plateau.appendChild(pawn);
+    pawns.push(pawn);
+    positions.push(0);
+    updatePawnPosition(i);
+  }
+}
+
+// Fonction pour mettre à jour la position d’un pion
+function updatePawnPosition(playerIndex){
+  const pos = positions[playerIndex];
+  const coords = positionsPlateau[pos];
+  pawns[playerIndex].style.left = `${coords.x}px`;
+  pawns[playerIndex].style.top = `${coords.y}px`;
+  // Afficher popup et jouer son
+  popup.style.display='block';
+  popup.textContent = actions[pos].popup;
+  const audio = new Audio(actions[pos].sound);
+  audio.play();
+  setTimeout(()=>{popup.style.display='none';},3000);
+}
+// Fonction pour lancer le dé
+function rollDice(){
+  const dice = Math.floor(Math.random()*6)+1;
+  diceDisplay.textContent = dice;
+  movePawn(currentPlayer, dice);
+}
+
+// Déplacement du pion
+function movePawn(playerIndex, steps){
+  let pos = positions[playerIndex];
+  for(let i=0;i<steps;i++){
+    pos++;
+    if(pos>=positionsPlateau.length) pos=positionsPlateau.length-1;
+    positions[playerIndex] = pos;
+    updatePawnPosition(playerIndex);
+  }
+
+  // Gestion des cases spéciales
+  if(positions[playerIndex]===10){ // case 11 (index 10)
+    positions[playerIndex]=0; // retour au départ
+    updatePawnPosition(playerIndex);
+  }else if(positions[playerIndex]===18){ // case 19 (index 18)
+    positions[playerIndex]+=3;
+    if(positions[playerIndex]>=positionsPlateau.length) positions[playerIndex]=positionsPlateau.length-1;
+    updatePawnPosition(playerIndex);
+  }
+
+  // Passer au joueur suivant
+  currentPlayer = (currentPlayer+1)%numPlayers;
+  updateCurrentPlayerDisplay();
+}
+
+// Affichage du joueur courant
+function updateCurrentPlayerDisplay(){
+  document.getElementById('currentPlayer').textContent = `Joueur ${currentPlayer+1} à jouer`;
+}
+
+// Bouton Start
+startBtn.addEventListener('click',()=>{
+  numPlayers = parseInt(document.getElementById('numPlayers').value);
+  currentPlayer=0;
+  initPawns();
+  updateCurrentPlayerDisplay();
+  bgMusic.play();
+});
+
+// Bouton Reset
+resetBtn.addEventListener('click',()=>{
+  pawns.forEach(p=>p.remove());
+  pawns=[];
+  positions=[];
+  diceDisplay.textContent='';
+  currentPlayer=0;
+  updateCurrentPlayerDisplay();
+  bgMusic.pause();
+  bgMusic.currentTime=0;
+});
+
+// Bouton Roll
+rollBtn.addEventListener('click',()=>{
+  rollDice();
+});
+
+// Bouton volume
+volumeBtn.addEventListener('click',()=>{
+  if(bgMusic.paused) bgMusic.play();
+  else bgMusic.pause();
+});
+</script>
