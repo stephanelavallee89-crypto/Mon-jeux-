@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Jeu de Plateau</title>
+<style>
+  body { margin:0; font-family: Arial, sans-serif; background:#222; color:#fff; display:flex; justify-content:center; }
+  #game-container { position: relative; width:800px; height:800px; background: url('https://raw.githubusercontent.com/stephanelavallee89-crypto/Mon-jeux-/main/plateau%20jeux.jpg') no-repeat center/contain; }
+  .player { position:absolute; width:40px; height:40px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-weight:bold; color:#fff; }
+  #popup { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#000; color:#fff; padding:10px 20px; font-size:20px; border-radius:10px; display:none; z-index:1000; }
+  #action-bar { position:absolute; bottom:0; left:0; width:100%; height:60px; background:#000; display:flex; align-items:center; justify-content:center; font-size:18px; text-align:center; }
+  #controls { position:absolute; top:10px; right:10px; display:flex; gap:10px; flex-direction: column; }
+  button { padding:5px 10px; font-size:16px; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="popup"></div>
+  <div id="action-bar">Bienvenue ! Sélectionnez le nombre de joueurs et cliquez sur Start</div>
+  <div id="controls">
+    <select id="player-count">
+      <option value="1">1 joueur</option>
+      <option value="2">2 joueurs</option>
+      <option value="3">3 joueurs</option>
+      <option value="4">4 joueurs</option>
+      <option value="5">5 joueurs</option>
+      <option value="6">6 joueurs</option>
+    </select>
+    <button id="start-btn">Start</button>
+    <button id="reset-btn">Reset</button>
+  </div>
+</div>
+
+<script>
+const positions = [
+  {x:0,y:0},{x:160,y:0},{x:320,y:0},{x:480,y:0},{x:640,y:0},
+  {x:640,y:160},{x:640,y:320},{x:640,y:480},{x:640,y:640},
+  {x:480,y:640},{x:320,y:640},{x:160,y:640},{x:0,y:640},
+  {x:0,y:480},{x:0,y:320},{x:0,y:160},
+  {x:160,y:160},{x:320,y:160},{x:480,y:160},
+  {x:480,y:320},{x:480,y:480},
+  {x:320,y:480},{x:160,y:480},
+  {x:160,y:320},{x:320,y:320} // 25 cases
+];
+
+const actions = [
+  {text:"Tout le monde se sert à boire !", popup:"santé !", sound:"verre qui trinquent"},
+  {text:"Fredonne la chanson que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", sound:"ambiance"},
+  {text:"Embrasse le joueur à ta droite", popup:"smack", sound:"son bisous"},
+  {text:"Pose une colle au joueur de ton choix s'il perd il boit sinon c'est toi ;)", popup:"Culture G", sound:"son ambiance"},
+  {text:"Tout le monde trinque", popup:"tchin tchin", sound:"verre qui trinquent"},
+  {text:"Échange un vêtement avec le joueur à ta gauche et faites un selfie", popup:"Echange", sound:"son ambiance"},
+  {text:"Mime ce que te souffle le joueur de droite les autres joueurs trouvent pas tu bois ;)", popup:"Action!", sound:"clap de cinema"},
+  {text:"Choisi le joueur qui doit te faire un massage", popup:"Zen", sound:"son relaxant"},
+  {text:"Échange ton verre avec le joueur à ta droite", popup:"C'est bon... ou pas !", sound:"lounge bar"},
+  {text:"Désigne ton joueur favori", popup:"Love", sound:"son romantic"},
+  {text:"Retour à la case départ !", popup:"AÏE", sound:"son de chute"},
+  {text:"Dessine ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", sound:"son ambiance"},
+  {text:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture g", sound:"son ambiance"},
+  {text:"Embrasse le joueur à ta gauche", popup:"Smak", sound:"son bisous"},
+  {text:"Échange un vêtement avec le joueur à ta droite et faites un selfie", popup:"Echange", sound:"son ambiance"},
+  {text:"Passe ton tour ! Et bois un coup tant qu'à faire :)", popup:"stop!", sound:"son de frein"},
+  {text:"Échange ton verre avec le joueur à ta gauche", popup:"C'est bon... ou pas!", sound:"lounge bar"},
+  {text:"Dessine ce que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", sound:"son ambiance"},
+  {text:"Avance de trois cases ... je pense que tu avais soif :)", popup:"tchou tchou glou glou", sound:"siflement train"},
+  {text:"Fredonne la chanson que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", sound:"fredonement"},
+  {text:"Pose une question osée au joueur de ton choix s'il ne répond pas il boit", popup:"Indiscretions", sound:"son coquin"},
+  {text:"Cul sec !", popup:"glou glou", sound:"son bouteille qui se vide glou glou"},
+  {text:"Mime ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois ;)", popup:"Action!", sound:"son clap de cinema"},
+  {text:"Pose une colle au joueur à ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture g", sound:"son ambiance"},
+  {text:"Tu as gagné le droit de demander le service que tu veux au joueur de ton choix", popup:"winner!!!", sound:"son vainqueur trophée"}
+];
+
+let players = [];
+let currentPlayer = 0;
+let playerCount = 0;
+
+const gameContainer = document.getElementById('game-container');
+const popup = document.getElementById('popup');
+const actionBar = document.getElementById('action-bar');
+
+document.getElementById('start-btn').onclick = () => {
+  playerCount = parseInt(document.getElementById('player-count').value);
+  gameContainer.querySelectorAll('.player').forEach(p => p.remove());
+  players = [];
+  for (let i=0;i<playerCount;i++){
+    let p = document.createElement('div');
+    p.className='player';
+    p.style.background=['red','blue','green','orange','purple','pink'][i];
+    p.textContent=i+1;
+    gameContainer.appendChild(p);
+    players.push({el:p,pos:0});
+    setPlayerPosition(i,0);
+  }
+  currentPlayer=0;
+  showAction(0);
+};
+
+document.getElementById('reset-btn').onclick = () => location.reload();
+
+function setPlayerPosition(playerIndex,posIndex){
+  let player = players[playerIndex];
+  player.pos = posIndex;
+  let base = positions[posIndex];
+  let offset = (playerIndex*10)-(players.length*5)+5; // éviter chevauchement
+  player.el.style.left=(base.x+offset)+'px';
+  player.el.style.top=(base.y+offset)+'px';
+}
+
+function showAction(posIndex){
+  actionBar.textContent = actions[posIndex].text;
+  popup.textContent = actions[posIndex].popup;
+  popup.style.display='block';
+  setTimeout(()=>{popup.style.display='none';},3000);
+}
+
+function rollDice(){
+  return Math.floor(Math.random()*6)+1;
+}
+
+function nextTurn(){
+  let dice = rollDice();
+  let player = players[currentPlayer];
+  let nextPos = player.pos + dice;
+  if(nextPos>=25) nextPos=25;
+  // Gestion case spéciales
+  if(nextPos===10) nextPos=0; // case 11 renvoie au départ
+  if(nextPos===18) nextPos+=3; // case 19 avance 3 cases
+  if(nextPos>24) nextPos=24;
+  setPlayerPosition(currentPlayer,nextPos);
+  showAction(nextPos);
+  currentPlayer=(currentPlayer+1)%players.length;
+  actionBar.textContent+=" | Tour joueur "+(currentPlayer+1)+" | Dés: "+dice;
+}
+
+gameContainer.onclick = (e)=>{
+  if(e.target.id!=='popup') nextTurn();
+};
+</script>
+</body>
+</html>
