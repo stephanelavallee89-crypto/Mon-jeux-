@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Jeu de Plateau Spirale</title>
+<style>
+body { margin:0; font-family:sans-serif; background:#222; color:#fff;}
+#plateau { position:relative; width:800px; height:600px; margin:20px auto; background:url('https://raw.githubusercontent.com/stephanelavallee89-crypto/Mon-jeux-/main/20251015_090213_0000.png') no-repeat center/contain; border:2px solid #fff; }
+.pion { width:30px; height:30px; border-radius:50%; position:absolute; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; }
+#bandeau { width:800px; height:50px; background:#000; margin:10px auto; text-align:center; line-height:50px; font-size:16px; }
+#controls { width:800px; margin:10px auto; display:flex; justify-content:space-around; margin-bottom:20px;}
+button { padding:10px 20px; font-size:16px; cursor:pointer; }
+#de { font-size:24px; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<div id="plateau"></div>
+<div id="bandeau">Choisissez le nombre de joueurs et cliquez Start</div>
+<div id="controls">
+  <div>
+    Nombre de joueurs :
+    <select id="nbJoueurs">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3" selected>3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+    </select>
+  </div>
+  <button id="start">Start</button>
+  <button id="lancerDes">Lancer Dé</button>
+  <button id="reset">Reset</button>
+  <div id="de">🎲</div>
+</div>
+
+<script>
+const plateau = document.getElementById('plateau');
+const bandeau = document.getElementById('bandeau');
+const nbJoueursSelect = document.getElementById('nbJoueurs');
+const startBtn = document.getElementById('start');
+const lancerDesBtn = document.getElementById('lancerDes');
+const resetBtn = document.getElementById('reset');
+const deDiv = document.getElementById('de');
+
+let nbJoueurs = 3;
+let joueurs = [];
+let tour = 0;
+let jeuCommence = false;
+
+// Coordonnées exactes en spirale pour le plateau 800x600
+const cases = [
+  {num:1, x:50,  y:45, action:"Tout le monde se sert à boire !", popup:"Santé !", son:"https://freesound.org/data/previews/341/341695_6247650-lq.mp3"},
+  {num:2, x:210, y:45, action:"Fredonne la chanson que te souffle le joueur à ta droite", popup:"Met l'ambiance !", son:"https://freesound.org/data/previews/341/341698_6247650-lq.mp3"},
+  {num:3, x:370, y:45, action:"Embrasse le joueur à ta droite", popup:"Smack", son:"https://freesound.org/data/previews/341/341700_6247650-lq.mp3"},
+  {num:4, x:530, y:45, action:"Pose une colle au joueur de ton choix", popup:"Culture G", son:"https://freesound.org/data/previews/341/341702_6247650-lq.mp3"},
+  {num:5, x:690, y:45, action:"Tout le monde trinque", popup:"Tchin tchin", son:"https://freesound.org/data/previews/341/341705_6247650-lq.mp3"},
+  {num:6, x:690, y:165, action:"Échange un vêtement avec le joueur à ta gauche et faites un selfie", popup:"Échange", son:"https://freesound.org/data/previews/341/341707_6247650-lq.mp3"},
+  {num:7, x:690, y:285, action:"Mime ce que te souffle le joueur à ta droite", popup:"Action!", son:"https://freesound.org/data/previews/341/341710_6247650-lq.mp3"},
+  {num:8, x:690, y:405, action:"Échange ton verre avec le joueur à ta droite", popup:"C'est bon... ou pas !", son:"https://freesound.org/data/previews/341/341715_6247650-lq.mp3"},
+  {num:9, x:690, y:525, action:"Case 9 action générique", popup:"Action9", son:"https://freesound.org/data/previews/341/341718_6247650-lq.mp3"},
+  {num:10,x:530, y:525, action:"Désigne ton joueur favoris", popup:"Love", son:"https://freesound.org/data/previews/341/341720_6247650-lq.mp3"},
+  {num:11,x:370, y:525, action:"Retour à la case départ !", popup:"AÏE", son:"https://freesound.org/data/previews/341/341723_6247650-lq.mp3"},
+  {num:12,x:210, y:525, action:"Dessine ce que te souffle le joueur à ta gauche", popup:"Draw", son:"https://freesound.org/data/previews/341/341725_6247650-lq.mp3"},
+  {num:13,x:50,  y:525, action:"Pose une colle au joueur de ton choix", popup:"Culture G", son:"https://freesound.org/data/previews/341/341728_6247650-lq.mp3"},
+  {num:14,x:50,  y:405, action:"Embrasse le joueur à ta gauche", popup:"Smak", son:"https://freesound.org/data/previews/341/341730_6247650-lq.mp3"},
+  {num:15,x:50,  y:285, action:"Échange un vêtement avec le joueur à ta droite", popup:"Échange", son:"https://freesound.org/data/previews/341/341733_6247650-lq.mp3"},
+  {num:16,x:50,  y:165, action:"Passe ton tour ! Et bois un coup", popup:"Stop!", son:"https://freesound.org/data/previews/341/341735_6247650-lq.mp3"},
+  {num:17,x:210, y:165, action:"Échange ton verre avec le joueur à ta gauche", popup:"C'est bon...ou pas!", son:"https://freesound.org/data/previews/341/341738_6247650-lq.mp3"},
+  {num:18,x:370, y:165, action:"Dessine ce que te souffle le joueur à ta droite", popup:"Draw", son:"https://freesound.org/data/previews/341/341740_6247650-lq.mp3"},
+  {num:19,x:530, y:165, action:"Avance de trois cases", popup:"Je pense que tu avais soif :)", son:"https://freesound.org/data/previews/341/341743_6247650-lq.mp3"},
+  {num:20,x:530, y:285, action:"Fredonne la chanson que te souffle le joueur à ta gauche", popup:"Fredonement", son:"https://freesound.org/data/previews/341/341745_6247650-lq.mp3"},
+  {num:21,x:530, y:405, action:"Pose une question osée au joueur de ton choix", popup:"Indiscretions", son:"https://freesound.org/data/previews/341/341748_6247650-lq.mp3"},
+  {num:22,x:370, y:405, action:"Cul sec !", popup:"Glou glou", son:"https://freesound.org/data/previews/341/341750_6247650-lq.mp3"},
+  {num:23,x:210, y:405, action:"Mime ce que te souffle le joueur à ta gauche", popup:"Action!", son:"https://freesound.org/data/previews/341/341753_6247650-lq.mp3"},
+  {num:24,x:370, y:285, action:"Pose une colle au joueur de ton choix", popup:"Culture G", son:"https://freesound.org/data/previews/341/341755_6247650-lq.mp3"},
+  {num:25,x:370, y:285, action:"Tu as gagné le droit de demander le service que tu veux", popup:"Winner!!!", son:"https://freesound.org/data/previews/341/341757_6247650-lq.mp3"}
+];
+
+function creerPions(nb){
+  plateau.innerHTML = '';
+  joueurs = [];
+  for(let i=0;i<nb;i++){
+    const pion = document.createElement('div');
+    pion.className='pion';
+    pion.style.background = ['red','blue','green','yellow','purple','orange'][i];
+    pion.innerText = i+1;
+    plateau.appendChild(pion);
+    joueurs.push({element:pion, position:1});
+    placerPion(i);
+  }
+}
+
+function placerPion(i){
+  const pos = cases[joueurs[i].position-1];
+  joueurs[i].element.style.left = pos.x + 'px';
+  joueurs[i].element.style.top = pos.y + 'px';
+}
+
+function afficherAction(){
+  const pos = joueurs[tour].position;
+  const c = cases[pos-1];
+  bandeau.innerText = `Tour Joueur ${tour+1} - Case ${c.num}: ${c.action} (${c.popup})`;
+  const audio = new Audio(c.son);
+  audio.play();
+}
+
+function lancerDe(){
+  if(!jeuCommence) return;
+  let de = Math.floor(Math.random()*6)+1;
+  deDiv.innerText = '🎲 ' + de;
+  let pos = joueurs[tour].position;
+  pos += de;
+  // Gestion cases spéciales
+  if(pos===11) pos=1;
+  if(pos===19) pos+=3;
+  if(pos>25) pos=25;
+  joueurs[tour].position = pos;
+  placerPion(tour);
+  afficherAction();
+  tour = (tour+1) % joueurs.length;
+}
+
+startBtn.onclick = ()=>{
+  nbJoueurs = parseInt(nbJoueursSelect.value);
+  creerPions(nbJoueurs);
+  tour = 0;
+  jeuCommence = true;
+  afficherAction();
+}
+
+lancerDesBtn.onclick = ()=>{
+  lancerDe();
+}
+
+resetBtn.onclick = ()=>{
+  plateau.innerHTML = '';
+  bandeau.innerText = "Choisissez le nombre de joueurs et cliquez Start";
+  deDiv.innerText = '🎲';
+  joueurs=[];
+  tour=0;
+  jeuCommence=false;
+}
+</script>
+</body>
+</html>
