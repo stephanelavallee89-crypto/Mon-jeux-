@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Jeu de Plateau</title>
+<style>
+  body { margin:0; font-family: Arial, sans-serif; background:#222; color:#fff; }
+  #plateau { position: relative; width:600px; height:600px; background: url('https://raw.githubusercontent.com/stephanelavallee89-crypto/Mon-jeux-/main/plateau%20jeux.jpg') no-repeat center/contain; margin: 20px auto; border: 2px solid #fff; }
+  .case { position: absolute; width: 100px; height: 100px; }
+  .pion { position: absolute; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; font-weight:bold; color:#fff; font-size:18px; }
+  #bandeau { width:600px; height:50px; background:#000; color:#fff; text-align:center; line-height:50px; margin: 0 auto; font-size:18px; }
+  #interface { width:600px; margin: 10px auto; text-align:center; }
+  button, select { margin:5px; padding:5px 10px; font-size:16px; }
+  #deScore { display:inline-block; width:30px; font-weight:bold; font-size:20px; margin-left:10px; }
+  #popup { position:absolute; width:200px; padding:10px; background:black; color:white; font-size:16px; text-align:center; border-radius:10px; display:none; z-index:10; }
+</style>
+</head>
+<body>
+
+<div id="plateau">
+  <div id="popup"></div>
+</div>
+
+<div id="bandeau">Bienvenue ! Cliquez sur Start pour commencer.</div>
+
+<div id="interface">
+  Joueurs: 
+  <select id="nbJoueurs">
+    <option value="1">1</option><option value="2">2</option>
+    <option value="3">3</option><option value="4">4</option>
+    <option value="5">5</option><option value="6">6</option>
+  </select>
+  <button id="startBtn">Start</button>
+  <button id="resetBtn">Reset</button>
+  <button id="volumeBtn">🔊</button>
+  <button id="deBtn">Lancer Dé</button>
+  <span id="deScore">0</span>
+  <span id="tourJoueur">Tour du joueur: 1</span>
+</div>
+
+<audio id="music" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" loop></audio>
+
+<script>
+const plateau = document.getElementById('plateau');
+const bandeau = document.getElementById('bandeau');
+const popup = document.getElementById('popup');
+const startBtn = document.getElementById('startBtn');
+const resetBtn = document.getElementById('resetBtn');
+const volumeBtn = document.getElementById('volumeBtn');
+const deBtn = document.getElementById('deBtn');
+const deScore = document.getElementById('deScore');
+const tourJoueur = document.getElementById('tourJoueur');
+const music = document.getElementById('music');
+
+let nbJoueurs = 1;
+let joueurs = [];
+let positions = [];
+let casePositions = [];
+let currentJoueur = 0;
+
+// Définition des coordonnées de chaque case (spirale 5x5)
+const offset = 50; // pour centrer les pions
+const baseX = [0,1,2,3,4,4,4,4,3,2,1,0,0,0,0,1,2,3,3,3,2,1,1,1,2,2];
+const baseY = [0,0,0,0,0,1,2,3,4,4,4,4,3,2,1,1,1,1,2,2,3,3,3,2,2];
+for(let i=0;i<25;i++){
+    casePositions.push({x:baseX[i]*100 + offset, y:baseY[i]*100 + offset});
+}
+
+// Actions et sons des cases
+const cases = [
+{action:"Tout le monde se sert à boire !", popup:"santé !", son:"https://www.soundjay.com/human/cheers-1.mp3"},
+{action:"Fredonne la chanson que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", son:"https://www.soundjay.com/misc/ambience-1.mp3"},
+{action:"Embrasse le joueur à ta droite", popup:"smack", son:"https://www.soundjay.com/human/kiss-1.mp3"},
+{action:"Pose une colle au joueur de ton choix s'il perd il boit sinon c'est toi ;)", popup:"Culture G", son:"https://www.soundjay.com/misc/ambience-1.mp3"},
+{action:"Tout le monde trinque", popup:"tchin tchin", son:"https://www.soundjay.com/human/cheers-1.mp3"},
+{action:"Echange un vêtement avec le joueur à ta gauche et faites un selfie", popup:"Echange", son:"https://www.soundjay.com/misc/ambience-1.mp3"},
+{action:"Mime ce que te souffle le joueur de droite, les autres joueurs trouvent pas tu bois ;)", popup:"Action!", son:"https://www.soundjay.com/misc/clap-1.mp3"},
+{action:"Choisi le joueur qui doit te faire un massage", popup:"Zen", son:"https://www.soundjay.com/misc/relax-1.mp3"},
+{action:"Echange ton verre avec le joueur à ta droite", popup:"C'est bon... ou pas !", son:"https://www.soundjay.com/misc/lounge-1.mp3"},
+{action:"Désigne ton joueur favori", popup:"Love", son:"https://www.soundjay.com/misc/romantic-1.mp3"},
+{action:"Retour à la case départ !", popup:"AÏE", son:"https://www.soundjay.com/human/fall-1.mp3"},
+{action:"Dessine ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", son:"https://www.soundjay.com/misc/ambience-1.mp3"},
+{action:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture g", son:"https://www.soundjay.com/misc/ambience-1.mp3"},
+{action:"Embrasse le joueur à ta gauche", popup:"Smak", son:"https://www.soundjay.com/human/kiss-1.mp3"},
+{action:"Echange un vêtement avec le joueur à ta droite et faites un selfie", popup:"Echange", son:"https://www.soundjay.com/misc/ambience-1.mp3"},
+{action:"Passe ton tour ! Et bois un coup tant qu'à faire :)", popup:"stop!", son:"https://www.soundjay.com/misc/brake-1.mp3"},
+{action:"Echange ton verre avec le joueur à ta gauche", popup:"C'est bon... ou pas !", son:"https://www.soundjay.com/misc/lounge-1.mp3"},
+{action:"Dessine ce que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", son:"https://www.soundjay.com/misc/ambience-1.mp3"},
+{action:"Avance de trois cases ... je pense que tu avais soif :)", popup:"tchou tchou glou glou", son:"https://www.soundjay.com/train/school-bell-1.mp3"},
+{action:"Fredonne la chanson que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", son:"https://www.soundjay.com/misc/fredonement-1.mp3"},
+{action:"Pose une question osée au joueur de ton choix s'il ne répond pas il boit", popup:"Indiscretions", son:"https://www.soundjay.com/misc/coquin-1.mp3"},
+{action:"Cul sec !", popup:"glou glou", son:"https://www.soundjay.com/human/bottle-1.mp3"},
+{action:"Mime ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois ;)", popup:"Action!", son:"https://www.soundjay.com/misc/clap-1.mp3"},
+{action:"Pose une colle au joueur à ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture g", son:"https://www.soundjay.com/misc/ambience-1.mp3"},
+{action:"Tu as gagné le droit de demander le service que tu veux au joueur de ton choix", popup:"winner!!!", son:"https://www.soundjay.com/misc/trophy-1.mp3"},
+];
+
+function createPions(){
+  plateau.innerHTML = '<div id="popup"></div>'; // reset
+  joueurs=[];
+  positions=[];
+  nbJoueurs = parseInt(document.getElementById('nbJoueurs').value);
+  for(let i=0;i<nbJoueurs;i++){
+    const pion = document.createElement('div');
+    pion.classList.add('pion');
+    pion.style.background=['red','blue','green','orange','purple','pink'][i];
+    pion.innerText=i+1;
+    plateau.appendChild(pion);
+    joueurs.push(pion);
+    positions.push(0);
+    // placer sur la case départ
+    pion.style.left = (casePositions[0].x -15*i) + 'px';
+    pion.style.top = (casePositions[0].y -15*i) + 'px';
+  }
+  currentJoueur = 0;
+  tourJoueur.innerText = "Tour du joueur: " + (currentJoueur+1);
+  showAction(0);
+  music.play();
+}
+
+function showAction(index){
+  bandeau.innerText = cases[index].action;
+  popup.style.display='block';
+  popup.style.left = (casePositions[index].x - 50) + 'px';
+  popup.style.top = (casePositions[index].y - 50) + 'px';
+  popup.innerText = cases[index].popup;
+  new Audio(cases[index].son).play();
+  setTimeout(()=>{ popup.style.display='none'; },3000);
+}
+
+function lancerDe(){
+  let de = Math.floor(Math.random()*6)+1;
+  deScore.innerText = de;
+  movePion(de);
+}
+
+function movePion(de){
+  let pos = positions[currentJoueur];
+  pos += de;
+  if(pos===10){ pos=0; } // case 11 renvoie au départ
+  if(pos===18){ pos+=3; } // case 19 avance 3 cases
+  if(pos>24) pos=24;
+  positions[currentJoueur] = pos;
+  // repositionner pion
+  const decalage = currentJoueur*15;
+  joueurs[currentJoueur].style.left = (casePositions[pos].x - decalage) + 'px';
+  joueurs[currentJoueur].style.top = (casePositions[pos].y - decalage) + 'px';
+  showAction(pos);
+  // passer au joueur suivant
+  currentJoueur = (currentJoueur +1)%nbJoueurs;
+  tourJoueur.innerText = "Tour du joueur: " + (currentJoueur+1);
+}
+
+startBtn.addEventListener('click', createPions);
+resetBtn.addEventListener('click',()=>{ plateau.innerHTML='<div id="popup"></div>'; joueurs=[]; positions=[]; deScore.innerText='0'; bandeau.innerText='Bienvenue ! Cliquez sur Start pour commencer.'; tourJoueur.innerText='Tour du joueur: 1'; music.pause(); music.currentTime=0; });
+volumeBtn.addEventListener('click',()=>{ if(music.paused){ music.play(); }else{ music.pause(); } });
+deBtn.addEventListener('click', lancerDe);
+</script>
+
+</body>
+</html>
