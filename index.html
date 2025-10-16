@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Jeu de Plateau</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #222; color: #fff; margin:0; display:flex; justify-content:center; align-items:flex-start; flex-direction:column;}
+  #game-container { position: relative; width: 800px; margin-top:20px;}
+  #board { width: 100%; display:block; }
+  .pawn { position:absolute; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; font-weight:bold; background:#ff0; color:#000; border:2px solid #000; }
+  #bandeau { background:#111; color:#fff; padding:15px; margin-top:5px; text-align:center; min-height:50px; border-radius:5px; font-size:18px; font-weight:bold;}
+  #controls { margin-top:10px; display:flex; justify-content:space-around; align-items:center;}
+  button { padding:10px 15px; font-size:16px; border-radius:5px; border:none; cursor:pointer; }
+  #diceResult { font-size:24px; font-weight:bold; margin-left:10px; }
+  #currentPlayer { font-size:18px; margin-left:10px; }
+  .popup { position:absolute; background:rgba(0,0,0,0.85); color:#fff; padding:8px 12px; border-radius:5px; display:none; z-index:100; font-size:16px; font-weight:bold;}
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <img id="board" src="https://raw.githubusercontent.com/stephanelavallee89-crypto/Mon-jeux-/main/plateau%20jeux.jpg" alt="Plateau de jeu">
+  <div id="popup" class="popup"></div>
+</div>
+
+<div id="bandeau">Cliquez sur Start pour commencer !</div>
+
+<div id="controls">
+  Joueurs: 
+  <select id="playerCount">
+    <option value="1">1</option>
+    <option value="2">2</option>
+    <option value="3">3</option>
+    <option value="4">4</option>
+    <option value="5">5</option>
+    <option value="6">6</option>
+  </select>
+  <button id="startBtn">Start</button>
+  <button id="rollDiceBtn">Lancer le dé</button>
+  <button id="resetBtn">Reset</button>
+  <button id="volumeBtn">🔊</button>
+  <span id="diceResult">0</span>
+  <span id="currentPlayer"></span>
+</div>
+
+<audio id="gameMusic" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" loop></audio>
+
+<script>
+const actions = {
+  1: {action:"Tout le monde se sert à boire !", popup:"santé !", sound:"https://www.soundjay.com/button/beep-07.wav"},
+  2: {action:"Fredonne la chanson que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", sound:"https://www.soundjay.com/button/button-3.mp3"},
+  3: {action:"Embrasse le joueur à ta droite", popup:"smack", sound:"https://www.soundjay.com/human/kiss-01.wav"},
+  4: {action:"Pose une colle au joueur de ton choix s'il perd il boit sinon c'est toi ;)", popup:"Culture G", sound:"https://www.soundjay.com/button/button-4.mp3"},
+  5: {action:"Tout le monde trinque", popup:"tchin tchin", sound:"https://www.soundjay.com/button/button-2.mp3"},
+  6: {action:"Échange un vêtement avec le joueur à ta gauche et faites un selfie", popup:"Echange", sound:"https://www.soundjay.com/button/button-4.mp3"},
+  7: {action:"Mime ce que te souffle le joueur de droite les autres joueurs trouvent pas tu bois ;)", popup:"Action!", sound:"https://www.soundjay.com/button/button-1.mp3"},
+  9: {action:"Échange ton verre avec le joueur à ta droite", popup:"C'est bon... ou pas !", sound:"https://www.soundjay.com/button/button-3.mp3"},
+  10:{action:"Désigne ton joueur favoris", popup:"Love", sound:"https://www.soundjay.com/button/button-7.mp3"},
+  11:{action:"Retour à la case départ !", popup:"AÏE", sound:"https://www.soundjay.com/button/button-10.wav"},
+  12:{action:"Dessine ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", sound:"https://www.soundjay.com/button/button-4.mp3"},
+  13:{action:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture g", sound:"https://www.soundjay.com/button/button-4.mp3"},
+  14:{action:"Embrasse le joueur à ta gauche", popup:"Smak", sound:"https://www.soundjay.com/human/kiss-01.wav"},
+  15:{action:"Échange un vêtement avec le joueur à ta droite et faites un selfie", popup:"Echange", sound:"https://www.soundjay.com/button/button-4.mp3"},
+  16:{action:"Passe ton tour ! Et bois un coup tant qu'à faire :)", popup:"stop!", sound:"https://www.soundjay.com/button/button-6.mp3"},
+  17:{action:"Échange ton verre avec le joueur à ta gauche", popup:"C'est bon... ou pas !", sound:"https://www.soundjay.com/button/button-3.mp3"},
+  18:{action:"Dessine ce que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", sound:"https://www.soundjay.com/button/button-4.mp3"},
+  19:{action:"avance de  trois cases ... je pense que tu avais soif :)", popup:"tchou tchou glou glou", sound:"https://www.soundjay.com/transport/train-whistle-01.mp3"},
+  20:{action:"Fredonne la chanson que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", sound:"https://www.soundjay.com/button/button-3.mp3"},
+  21:{action:"Pose une question osé au joueur de ton choix s'il ne répond pas il boit", popup:"Indiscretions", sound:"https://www.soundjay.com/button/button-2.mp3"},
+  22:{action:"Cul sec !", popup:"glou glou", sound:"https://www.soundjay.com/button/button-4.mp3"},
+  23:{action:"Mime ce que te souffle le joueur à la gauche si les autres joueurs ne trouvent pas tu bois ;)", popup:"Action!", sound:"https://www.soundjay.com/button/button-1.mp3"},
+  24:{action:"Pose une colle au joueur de ton choix  si il perd il boit sinon c'est toi ;)", popup:"Culture g", sound:"https://www.soundjay.com/button/button-4.mp3"},
+  25:{action:"Tu as gagné le droit de demander le service que tu veux au joueur de ton choix", popup:"winner!!!", sound:"https://www.soundjay.com/button/button-5.mp3"}
+};
+
+// Coordonnées centrées des cases sur le plateau
+const casePositions = {
+  1:{x:50, y:50}, 2:{x:180,y:50}, 3:{x:310,y:50}, 4:{x:440,y:50}, 5:{x:570,y:50},
+  16:{x:50,y:180},17:{x:180,y:180},18:{x:310,y:180},19:{x:440,y:180},6:{x:570,y:180},
+  15:{x:50,y:310},24:{x:180,y:310},25:{x:310,y:310},20:{x:440,y:310},7:{x:570,y:310},
+  14:{x:50,y:440},23:{x:180,y:440},22:{x:310,y:440},21:{x:440,y:440},8:{x:570,y:440},
+  13:{x:50,y:570},12:{x:180,y:570},11:{x:310,y:570},10:{x:440,y:570},9:{x:570,y:570}
+};
+
+let pawns=[], currentPlayer=0, playerCount=1, diceResult=0;
+const gameMusic=document.getElementById("gameMusic");
+
+document.getElementById("startBtn").onclick = () => {
+  resetGame();
+  playerCount=parseInt(document.getElementById("playerCount").value);
+  placePawns();
+  showAction(1);
+  currentPlayer=0;
+  updateCurrentPlayer();
+  gameMusic.play();
+};
+
+document.getElementById("rollDiceBtn").onclick = () => {
+  if(pawns.length===0) return;
+  diceResult=Math.floor(Math.random()*6)+1;
+  document.getElementById("diceResult").innerText=diceResult;
+  movePawn(pawns[currentPlayer], diceResult);
+};
+
+document.getElementById("resetBtn").onclick = resetGame;
+
+document.getElementById("volumeBtn").onclick = () => {
+  if(gameMusic.paused) gameMusic.play();
+  else gameMusic.pause();
+};
+
+function resetGame(){
+  document.getElementById("bandeau").innerText="Cliquez sur Start pour commencer !";
+  document.getElementById("diceResult").innerText=0;
+  document.getElementById("currentPlayer").innerText="";
+  pawns.forEach(p=>p.div.remove());
+  pawns=[];
+  currentPlayer=0;
+  diceResult=0;
+}
+
+function placePawns(){
+  for(let i=0;i<playerCount;i++){
+    const div=document.createElement("div");
+    div.classList.add("pawn");
+    div.innerText=i+1;
+    document.getElementById("game-container").appendChild(div);
+    pawns.push({div,pos:1});
+    movePawnToCase(pawns[i],1);
+  }
+}
+
+function movePawn(pawn,steps){
+  let target=pawn.pos+steps;
+  if(target>25) target=25;
+  const path=[];
+  for(let i=pawn.pos+1;i<=target;i++) path.push(i);
+  moveStep(pawn,path,0);
+}
+
+function moveStep(pawn,path,index){
+  if(index>=path.length){
+    handleSpecialCase(pawn);
+    currentPlayer=(currentPlayer+1)%playerCount;
+    updateCurrentPlayer();
+    return;
+  }
+  pawn.pos=path[index];
+  movePawnToCase(pawn,pawn.pos);
+  setTimeout(()=>moveStep(pawn,path,index+1),400);
+  showAction(pawn.pos);
+}
+
+function handleSpecialCase(pawn){
+  if(pawn.pos===11) pawn.pos=1;
+  if(pawn.pos===19) pawn.pos+=3;
+  if(pawn.pos>25) pawn.pos=25;
+  movePawnToCase(pawn,pawn.pos);
+  showAction(pawn.pos);
+}
+
+function movePawnToCase(pawn,caseNum){
+  const pos=casePositions[caseNum];
+  if(!pos) return;
+  pawn.div.style.left=(pos.x-15)+"px"; // centrage exact
+  pawn.div.style.top=(pos.y-15)+"px";
+}
+
+function showAction(caseNum){
+  const act=actions[caseNum];
+  if(!act) return;
+  document.getElementById("bandeau").innerText=act.action;
+  const popup=document.getElementById("popup");
+  popup.innerText=act.popup;
+  const pos=casePositions[caseNum];
+  popup.style.left=(pos.x+5)+"px";
+  popup.style.top=(pos.y-50)+"px";
+  popup.style.display="block";
+  const audio=new Audio(act.sound);
+  audio.play();
+  setTimeout(()=>popup.style.display="none",3000);
+}
+
+function updateCurrentPlayer(){
+  document.getElementById("currentPlayer").innerText="Tour du joueur: "+(currentPlayer+1);
+}
+</script>
+</body>
+</html>
