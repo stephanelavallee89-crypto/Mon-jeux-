@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Jeu de Plateau</title>
+<style>
+  body { font-family: sans-serif; margin:0; padding:0; background:#222; color:#fff;}
+  #gameContainer { position: relative; width:500px; margin:20px auto;}
+  #board { width:500px; height:500px; background-image: url('https://raw.githubusercontent.com/stephanelavallee89-crypto/Mon-jeux-/main/plateau%20jeux.jpg'); background-size: cover; position: relative;}
+  .pawn { width:30px; height:30px; border-radius:50%; position:absolute; display:flex; justify-content:center; align-items:center; font-size:18px; font-weight:bold; color:#fff;}
+  #controls { text-align:center; margin-top:10px;}
+  #actionBar { background:#000; padding:10px; margin-top:10px; height:60px; overflow:hidden;}
+  #popup { position:absolute; background:#fff; color:#000; padding:5px 10px; border-radius:5px; display:none;}
+  button { margin:0 5px; padding:5px 10px; font-size:14px;}
+  #diceDisplay { font-size:16px; margin-left:10px;}
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <div id="board"></div>
+  <div id="popup"></div>
+</div>
+
+<div id="controls">
+  <label>Joueurs: <select id="playerCount"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
+  <button id="startBtn">Start</button>
+  <button id="diceBtn">Lancer Dé</button>
+  <span id="diceDisplay">Dé: -</span>
+  <button id="musicBtn">Pause Musique</button>
+  <button id="resetBtn">Reset</button>
+</div>
+
+<div id="actionBar"></div>
+
+<audio id="bgMusic" loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>
+
+<script>
+// Coordonnées des cases en spirale
+const caseCoords=[
+  {x:50,y:50},{x:150,y:50},{x:250,y:50},{x:350,y:50},{x:450,y:50},
+  {x:450,y:150},{x:450,y:250},{x:450,y:350},{x:350,y:350},{x:250,y:350},
+  {x:150,y:350},{x:50,y:350},{x:50,y:250},{x:50,y:150},{x:150,y:150},
+  {x:250,y:150},{x:350,y:150},{x:350,y:250},{x:250,y:250},{x:150,y:250},
+  {x:150,y:200},{x:200,y:200},{x:250,y:200},{x:300,y:200},{x:250,y:250}
+];
+
+// Détails des actions et sons
+const actions=[
+  {text:"Tout le monde se sert à boire !", popup:"santé !", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Fredonne la chanson que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Embrasse le joueur à ta droite", popup:"smack", sound:"https://freesound.org/data/previews/22/22452_41027-lq.mp3"},
+  {text:"Pose une colle au joueur de ton choix s'il perd il boit sinon c'est toi ;)", popup:"Culture G", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Tout le monde trinque", popup:"tchin tchin", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Échange un vêtement avec le joueur à ta gauche et faites un selfie", popup:"Echange", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Mime ce que te souffle le joueur de droite...", popup:"Action!", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"", popup:"", sound:""}, // 8 vide
+  {text:"Échange ton verre avec le joueur à ta droite", popup:"C'est bon... ou pas !", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Désigne ton joueur favori", popup:"Love", sound:"https://freesound.org/data/previews/22/22452_41027-lq.mp3"},
+  {text:"Retour à la case départ !", popup:"AÏE", sound:"https://freesound.org/data/previews/22/22452_41027-lq.mp3"},
+  {text:"Dessine ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture G", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Embrasse le joueur à ta gauche", popup:"Smak", sound:"https://freesound.org/data/previews/22/22452_41027-lq.mp3"},
+  {text:"Échange un vêtement avec le joueur à ta droite et faites un selfie", popup:"Echange", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Passe ton tour ! Et bois un coup tant qu'à faire :)", popup:"Stop!", sound:"https://freesound.org/data/previews/22/22452_41027-lq.mp3"},
+  {text:"Échange ton verre avec le joueur à ta gauche", popup:"C'est bon... ou pas !", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Dessine ce que te souffle le joueur à ta droite...", popup:"Draw", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Avance de trois cases ... je pense que tu avais soif :)", popup:"Tchou Tchou", sound:"https://freesound.org/data/previews/22/22452_41027-lq.mp3"},
+  {text:"Fredonne la chanson que te souffle le joueur à ta gauche...", popup:"Fredonnement", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Pose une question osée au joueur de ton choix", popup:"Indiscretions", sound:"https://freesound.org/data/previews/22/22452_41027-lq.mp3"},
+  {text:"Cul sec !", popup:"Glou Glou", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Mime ce que te souffle le joueur à ta gauche...", popup:"Action!", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Pose une colle au joueur de ton choix...", popup:"Culture G", sound:"https://freesound.org/data/previews/41/41540_512123-lq.mp3"},
+  {text:"Tu as gagné le droit de demander le service que tu veux au joueur de ton choix", popup:"Winner!!!", sound:"https://freesound.org/data/previews/22/22452_41027-lq.mp3"}
+];
+
+let pawns=[], currentPlayer=0, moving=false;
+
+// Initialisation des pions
+function initPawns(count){
+  const board=document.getElementById("board");
+  pawns=[];
+  board.querySelectorAll(".pawn").forEach(p=>p.remove());
+  for(let i=0;i<count;i++){
+    const div=document.createElement("div");
+    div.className="pawn";
+    div.textContent=i+1;
+    board.appendChild(div);
+    pawns.push({el:div,pos:0});
+  }
+}
+
+// Affichage popup
+function showPopup(text, x, y, duration=3000){
+  const popup=document.getElementById("popup");
+  popup.textContent=text;
+  popup.style.left=x+"px";
+  popup.style.top=y+"px";
+  popup.style.display="block";
+  setTimeout(()=>{popup.style.display="none";}, duration);
+}
+
+// Déplacement d'un pion
+function movePawn(index, steps){
+  let pawn=pawns[index];
+  let target=pawn.pos+steps;
+  if(target>24) target=24;
+  const move=function(){
+    if(pawn.pos>=target){ // fin déplacement
+      // Action de la case
+      const action=actions[pawn.pos];
+      document.getElementById("actionBar").textContent=action.text;
+      const audio=new Audio(action.sound);
+      audio.play();
+      showPopup(action.popup, caseCoords[pawn.pos].x+15, caseCoords[pawn.pos].y-35);
+      // Cas spéciaux
+      if(pawn.pos===10) pawn.pos=0; // case 11 renvoi départ
+      if(pawn.pos===18) pawn.pos+=3; // case 19 avance 3
+      updatePawn(pawn);
+      moving=false;
+      currentPlayer=(currentPlayer+1)%pawns.length;
+      return;
+    }
+    pawn.pos++;
+    updatePawn(pawn);
+    setTimeout(move,200);
+  };
+  move();
+}
+
+// Mise à jour position
+function updatePawn(pawn){
+  const pos=caseCoords[pawn.pos];
+  pawn.el.style.left=pos.x+"px";
+  pawn.el.style.top=pos.y+"px";
+}
+
+// Boutons
+document.getElementById("startBtn").addEventListener("click", ()=>{
+  const count=parseInt(document.getElementById("playerCount").value);
+  initPawns(count);
+  pawns.forEach(p=>p.pos=0);
+  pawns.forEach(updatePawn);
+  currentPlayer=0;
+  document.getElementById("actionBar").textContent=actions[0].text;
+  showPopup(actions[0].popup, caseCoords[0].x+15, caseCoords[0].y-35);
+  new Audio(actions[0].sound).play();
+  document.getElementById("bgMusic").play();
+});
+
+document.getElementById("diceBtn").addEventListener("click", ()=>{
+  if(moving || pawns.length===0) return;
+  moving=true;
+  const roll=Math.floor(Math.random()*6)+1;
+  document.getElementById("diceDisplay").textContent=`Dé: ${roll}`;
+  movePawn(currentPlayer, roll);
+});
+
+document.getElementById("musicBtn").addEventListener("click", ()=>{
+  const music=document.getElementById("bgMusic");
+  if(music.paused) music.play();
+  else music.pause();
+});
+
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  pawns.forEach(p=>p.pos=0);
+  pawns.forEach(updatePawn);
+  currentPlayer=0;
+  document.getElementById("actionBar").textContent="";
+  document.getElementById("diceDisplay").textContent="Dé: -";
+  document.getElementById("popup").style.display="none";
+  document.getElementById("bgMusic").pause();
+  document.getElementById("bgMusic").currentTime=0;
+});
+</script>
+</body>
+</html>
