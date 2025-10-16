@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Jeu de Plateau</title>
+<style>
+  body { font-family: Arial, sans-serif; text-align: center; margin: 0; background: #222; color: #fff; }
+  #game-container { position: relative; width: 800px; margin: 20px auto; }
+  #plateau { width: 100%; display: block; }
+  .pion { position: absolute; width: 40px; height: 40px; border-radius: 50%; text-align: center; line-height: 40px; font-weight: bold; color: #fff; z-index:5; }
+  #bandeau { position: absolute; bottom: -70px; left: 0; width: 100%; height: 60px; background: black; color: white; display: flex; justify-content: center; align-items: center; font-size: 18px; }
+  #popup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.85); color: white; font-size: 24px; padding: 20px; border-radius: 10px; display: none; z-index: 10; }
+  #controls { margin-top: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  button { padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; border: none; }
+  #diceValue { font-size: 24px; font-weight: bold; margin-left: 10px; }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <img id="plateau" src="https://raw.githubusercontent.com/stephanelavallee89-crypto/Mon-jeux-/main/plateau%20jeux.jpg" alt="Plateau de jeu">
+  <div id="popup"></div>
+  <div id="bandeau">Bienvenue au jeu !</div>
+</div>
+
+<div id="controls">
+  <label>Nombre de joueurs:
+    <select id="playerCount">
+      <option value="1">1</option>
+      <option value="2" selected>2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+    </select>
+  </label>
+  <button id="startBtn">Start</button>
+  <button id="rollDeBtn">Lancer le Dé</button>
+  <span id="diceValue">0</span>
+  <button id="resetBtn">Reset</button>
+  <button id="musicBtn">Musique On/Off</button>
+</div>
+
+<audio id="gameMusic" loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>
+
+<script>
+const playerPositions = [];
+const players = [];
+let currentPlayer = 0;
+let playerCount = 2;
+const diceValueSpan = document.getElementById('diceValue');
+const bandeau = document.getElementById('bandeau');
+const popup = document.getElementById('popup');
+let musicOn = false;
+const gameMusic = document.getElementById('gameMusic');
+
+// Coordonnées des cases en spirale
+const cases = [
+  {x:50, y:50}, {x:180, y:50}, {x:310, y:50}, {x:440, y:50}, {x:570, y:50},
+  {x:570, y:180}, {x:570, y:310}, {x:570, y:440}, {x:570, y:570}, {x:440, y:570},
+  {x:310, y:570}, {x:180, y:570}, {x:50, y:570}, {x:50, y:440}, {x:50, y:310},
+  {x:50, y:180}, {x:180, y:180}, {x:310, y:180}, {x:440, y:180}, {x:440, y:310},
+  {x:440, y:440}, {x:310, y:440}, {x:180, y:440}, {x:180, y:310}, {x:310, y:310} // Case 25 centre
+];
+
+// Actions des cases
+const actions = [
+  {text:"Tout le monde se sert à boire !", popup:"santé !", sound:""},
+  {text:"Fredonne la chanson que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", sound:""},
+  {text:"Embrasse le joueur à ta droite", popup:"smack", sound:""},
+  {text:"Pose une colle au joueur de ton choix s'il perd il boit sinon c'est toi ;)", popup:"Culture G", sound:""},
+  {text:"Tout le monde trinque", popup:"tchin tchin", sound:""},
+  {text:"Echange un vêtement avec le joueur à ta gauche et faites un selfi", popup:"Echange", sound:""},
+  {text:"Mime ce que te souffle le joueur de droite si les autres ne trouvent pas tu bois ;)", popup:"Action!", sound:""},
+  {text:"Choisi le joueur qui doit te faire un massage", popup:"Zen", sound:""},
+  {text:"Echange ton verre avec le joueur à ta droite", popup:"C'est bon... ou pas !", sound:""},
+  {text:"Désigne ton joueur favori", popup:"Love", sound:""},
+  {text:"Retour à la case départ !", popup:"AÏE", sound:""},
+  {text:"Dessine ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", sound:""},
+  {text:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture g", sound:""},
+  {text:"Embrasse le joueur à ta gauche", popup:"Smak", sound:""},
+  {text:"Echange un vêtement avec le joueur à ta droite et faites un selfi", popup:"Echange", sound:""},
+  {text:"Passe ton tour ! Et bois un coup tant qu'à faire :)", popup:"stop!", sound:""},
+  {text:"Echange ton verre avec le joueur à ta gauche", popup:"C'est bon...ou pas!", sound:""},
+  {text:"Dessine ce que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", sound:""},
+  {text:"avance de trois cases ... je pense que tu avais soif :)", popup:"tchou tchou glou glou", sound:""},
+  {text:"Fredonne la chanson que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", sound:""},
+  {text:"Pose une question osée au joueur de ton choix s'il ne répond pas il boit", popup:"Indiscretions", sound:""},
+  {text:"cul sec !", popup:"glou glou", sound:""},
+  {text:"mime ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois ;)", popup:"Action!", sound:""},
+  {text:"Pose une colle au joueur à ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture g", sound:""},
+  {text:"Tu as gagné le droit de demander le service que tu veux au joueur de ton choix", popup:"winner!!!", sound:""}
+];
+
+// Créer les pions
+function createPlayers() {
+  players.length=0;
+  playerPositions.length=0;
+  document.querySelectorAll('.pion').forEach(p=>p.remove());
+  for(let i=0;i<playerCount;i++){
+    const div = document.createElement('div');
+    div.className='pion';
+    div.style.backgroundColor=['red','blue','green','orange','purple','pink'][i];
+    div.textContent=i+1;
+    document.getElementById('game-container').appendChild(div);
+    players.push(div);
+    playerPositions.push(0);
+    div.style.left = cases[0].x + 'px';
+    div.style.top = cases[0].y + 'px';
+  }
+}
+
+// Afficher action sur bandeau et pop-up
+function showAction(index){
+  bandeau.textContent = actions[index].text;
+  popup.textContent = actions[index].popup;
+  popup.style.display = 'block';
+  setTimeout(()=>{ popup.style.display='none'; }, 3000);
+  if(actions[index].sound){
+    const s = new Audio(actions[index].sound);
+    s.play();
+  }
+}
+
+// Lancer le dé
+function rollDe(){
+  const roll = Math.floor(Math.random()*6)+1;
+  diceValueSpan.textContent = roll;
+  let pos = playerPositions[currentPlayer];
+  pos += roll;
+
+  // Cas spéciaux
+  if(pos===10) pos=0; // case 11 → retour départ
+  if(pos===18) pos+=3; // case 19 → avance 3 cases
+  if(pos>24) pos=24;
+
+  playerPositions[currentPlayer]=pos;
+  const p = players[currentPlayer];
+  p.style.left = cases[pos].x+'px';
+  p.style.top = cases[pos].y+'px';
+
+  showAction(pos);
+
+  currentPlayer = (currentPlayer+1)%playerCount;
+}
+
+// Boutons
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  playerCount = parseInt(document.getElementById('playerCount').value);
+  createPlayers();
+  currentPlayer=0;
+  playerPositions.fill(0);
+  showAction(0);
+  if(!musicOn){ gameMusic.play(); musicOn=true; }
+});
+
+document.getElementById('rollDeBtn').addEventListener('click', rollDe);
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  players.forEach((p,i)=>{p.style.left=cases[0].x+'px'; p.style.top=cases[0].y+'px';});
+  playerPositions.fill(0);
+  currentPlayer=0;
+  bandeau.textContent = "Jeu réinitialisé";
+});
+
+document.getElementById('musicBtn').addEventListener('click', ()=>{
+  if(musicOn){ gameMusic.pause(); musicOn=false; }else{ gameMusic.play(); musicOn=true; }
+});
+</script>
+</body>
+</html>
