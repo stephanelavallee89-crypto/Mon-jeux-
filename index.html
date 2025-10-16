@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jeu de Plateau</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #222;
+    color: #fff;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+  }
+  #game-container {
+    position: relative;
+    width: 600px;
+    margin: 20px auto;
+  }
+  #plateau {
+    width: 100%;
+    display: block;
+  }
+  .pawn {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 30px;
+    font-weight: bold;
+    color: #fff;
+    z-index: 2;
+  }
+  #bandeau {
+    background: #111;
+    color: #fff;
+    padding: 10px;
+    margin-top: 10px;
+    font-size: 18px;
+    min-height: 40px;
+  }
+  #popup {
+    position: absolute;
+    padding: 5px 10px;
+    background: rgba(255,255,0,0.9);
+    border-radius: 5px;
+    display: none;
+    z-index: 3;
+    font-weight: bold;
+  }
+  #controls {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  button, select {
+    padding: 5px 10px;
+    font-size: 16px;
+  }
+  #dice {
+    font-size: 24px;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <img id="plateau" src="https://raw.githubusercontent.com/stephanelavallee89-crypto/Mon-jeux-/main/plateau%20jeux.jpg" alt="Plateau">
+  <div id="popup"></div>
+</div>
+
+<div id="bandeau">Cliquez sur Start pour commencer le jeu !</div>
+
+<div id="controls">
+  <label>Nombre de joueurs:
+    <select id="numPlayers">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3" selected>3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+    </select>
+  </label>
+  <button id="startBtn">Start</button>
+  <button id="rollDiceBtn">Lancer Dé</button>
+  <button id="resetBtn">Reset</button>
+  <button id="musicBtn">Musique On/Off</button>
+  <span id="dice">Dé: 0</span>
+  <span id="currentPlayer">Tour: 1</span>
+</div>
+
+<audio id="bgMusic" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" loop></audio>
+
+<script>
+// Positions des cases (spirale) [x, y] en px relative au plateau
+const casePositions = [
+  [20, 20],[140, 20],[260, 20],[380, 20],[500, 20],
+  [500, 140],[500, 260],[500, 380],[500, 500],
+  [380, 500],[260, 500],[140, 500],[20, 500],
+  [20, 380],[20, 260],[140, 140],[260, 140],[380, 140],
+  [380, 260],[380, 380],[260, 380],[140, 380],[140, 260],
+  [260, 260],[260, 260]
+];
+
+// Actions et sons
+const actions = [
+  {text:"Tout le monde se sert à boire !", popup:"santé !", sound:"https://freesound.org/data/previews/341/341695_5260877-lq.mp3"},
+  {text:"Fredonne la chanson que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Embrasse le joueur à ta droite", popup:"smack", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Pose une colle au joueur de ton choix s'il perd il boit sinon c'est toi ;)", popup:"Culture G", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Tout le monde trinque", popup:"tchin tchin", sound:"https://freesound.org/data/previews/341/341695_5260877-lq.mp3"},
+  {text:"Echange un vêtement avec le joueur à ta gauche et faites un selfie", popup:"Echange", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Mime ce que te souffle le joueur de droite, si les autres ne trouvent pas tu bois ;)", popup:"Action!", sound:"https://freesound.org/data/previews/341/341695_5260877-lq.mp3"},
+  {text:"Echange ton verre avec le joueur à ta droite", popup:"C'est bon... ou pas !", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Désigne ton joueur favori", popup:"Love", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Retour à la case départ !", popup:"AÏE", sound:"https://freesound.org/data/previews/22/22857_18216-lq.mp3"},
+  {text:"Dessine ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture G", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Embrasse le joueur à ta gauche", popup:"Smak", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Echange un vêtement avec le joueur à ta droite et faites un selfie", popup:"Echange", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Passe ton tour ! Et bois un coup tant qu'à faire :)", popup:"stop!", sound:"https://freesound.org/data/previews/22/22857_18216-lq.mp3"},
+  {text:"Echange ton verre avec le joueur à ta gauche", popup:"C'est bon... ou pas!", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Dessine ce que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois !", popup:"Draw", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Avance de trois cases ... je pense que tu avais soif :)", popup:"tchou tchou glou glou", sound:"https://freesound.org/data/previews/22/22857_18216-lq.mp3"},
+  {text:"Fredonne la chanson que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois :)", popup:"Met l'ambiance !", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Pose une question osée au joueur de ton choix s'il ne répond pas il boit", popup:"Indiscretions", sound:"https://freesound.org/data/previews/66/66717_931655-lq.mp3"},
+  {text:"Cul sec !", popup:"glou glou", sound:"https://freesound.org/data/previews/22/22857_18216-lq.mp3"},
+  {text:"Mime ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois ;)", popup:"Action!", sound:"https://freesound.org/data/previews/341/341695_5260877-lq.mp3"},
+  {text:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi ;)", popup:"Culture G", sound:"https://freesound.org/data/previews/83/83048_1022651-lq.mp3"},
+  {text:"Tu as gagné le droit de demander le service que tu veux au joueur de ton choix", popup:"winner!!!", sound:"https://freesound.org/data/previews/22/22857_18216-lq.mp3"}
+];
+
+let pawns = [];
+let numPlayers = 3;
+let currentPlayer = 0;
+
+const bandeau = document.getElementById('bandeau');
+const popup = document.getElementById('popup');
+const diceEl = document.getElementById('dice');
+const currentPlayerEl = document.getElementById('currentPlayer');
+const bgMusic = document.getElementById('bgMusic');
+
+function createPawns(n) {
+  pawns.forEach(p=>p.el.remove());
+  pawns = [];
+  for(let i=0;i<n;i++){
+    const pawn = document.createElement('div');
+    pawn.classList.add('pawn');
+    pawn.style.background = ['red','blue','green','orange','purple','cyan'][i];
+    pawn.textContent = i+1;
+    document.getElementById('game-container').appendChild(pawn);
+    pawns.push({el:pawn, pos:0});
+  }
+}
+
+function updatePawnPositions() {
+  pawns.forEach((p,i)=>{
+    let pos = p.pos;
+    // Déplacements spéciaux
+    if(pos===10)p.pos=0; // case 11
+    if(pos===18)p.pos+=3; // case 19
+    pos=p.pos;
+    if(pos>24)pos=24;
+    const [x,y] = casePositions[pos];
+    p.el.style.left = x + 'px';
+    p.el.style.top = y + 'px';
+  });
+}
+
+function showAction(pos){
+  const action = actions[pos];
+  bandeau.textContent = action.text;
+  popup.textContent = action.popup;
+  popup.style.left = (casePositions[pos][0]+60)+'px';
+  popup.style.top = (casePositions[pos][1]+60)+'px';
+  popup.style.display='block';
+  const audio = new Audio(action.sound);
+  audio.play();
+  setTimeout(()=>popup.style.display='none',4000);
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  numPlayers = parseInt(document.getElementById('numPlayers').value);
+  createPawns(numPlayers);
+  pawns.forEach(p=>p.pos=0);
+  updatePawnPositions();
+  currentPlayer=0;
+  currentPlayerEl.textContent = "Tour: "+(currentPlayer+1);
+  showAction(0);
+});
+
+document.getElementById('rollDiceBtn').addEventListener('click',()=>{
+  let roll = Math.floor(Math.random()*6)+1;
+  diceEl.textContent = "Dé: "+roll;
+  pawns[currentPlayer].pos+=roll;
+  updatePawnPositions();
+  showAction(pawns[currentPlayer].pos);
+  currentPlayer=(currentPlayer+1)%numPlayers;
+  currentPlayerEl.textContent = "Tour: "+(currentPlayer+1);
+});
+
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  pawns.forEach(p=>p.pos=0);
+  updatePawnPositions();
+  currentPlayer=0;
+  diceEl.textContent="Dé: 0";
+  currentPlayerEl.textContent = "Tour: 1";
+  bandeau.textContent="Cliquez sur Start pour commencer le jeu !";
+});
+
+document.getElementById('musicBtn').addEventListener('click',()=>{
+  if(bgMusic.paused) bgMusic.play(); else bgMusic.pause();
+});
+</script>
+
+</body>
+</html>
