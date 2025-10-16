@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Jeux de Bach — autonome</title>
+<style>
+:root{--sidebar-w:320px;--bottom-h:120px;--pawn-size:56px;--accent:#ffd54a}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#0b0b0b;color:#eee;font-family:Inter,system-ui,Arial}
+.app{display:grid;grid-template-columns:1fr var(--sidebar-w);grid-template-rows:1fr var(--bottom-h);gap:12px;height:100vh;padding:12px}
+.board-wrap{grid-column:1;grid-row:1;position:relative;display:flex;align-items:center;justify-content:center}
+.board{position:relative;width:100%;height:100%;border-radius:8px;overflow:hidden;background:#000;border:2px solid #111;display:flex;align-items:center;justify-content:center}
+.board img{max-width:100%;max-height:100%;display:block}
+.pawn{position:absolute;width:var(--pawn-size);height:var(--pawn-size);transform:translate(-50%,-50%);transition:left 400ms ease,top 400ms ease,transform 220ms;z-index:60}
+.case-popup{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0.8);background:rgba(0,0,0,0.85);padding:16px 20px;border-radius:12px;color:#fff;font-weight:800;font-size:18px;z-index:999;display:none;box-shadow:0 18px 48px rgba(0,0,0,0.7)}
+.controls-panel{grid-column:2;grid-row:1 / span 2;background:linear-gradient(180deg,#0b0b0b,#080808);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;align-items:center}
+.title{font-weight:800;color:var(--accent);font-size:18px}
+input[type=file],input[type=number],select,button{background:#111;border:1px solid #222;color:#fff;padding:8px;border-radius:8px}
+button{cursor:pointer}
+.dice{width:72px;height:72px;border-radius:12px;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;font-size:30px;cursor:pointer;box-shadow:0 12px 26px rgba(0,0,0,0.6)}
+.dice.spin{animation:spinDice 700ms ease;transform:translateY(-6px)}
+@keyframes spinDice{0%{transform:rotate(0deg) translateY(0)}50%{transform:rotate(720deg) translateY(-14px)}100%{transform:rotate(0deg) translateY(0)}}
+.start-btn{width:100%;padding:12px;border-radius:10px;background:linear-gradient(180deg,#ffb74d,#ff9800);font-weight:900;color:#111;border:none;box-shadow:0 12px 34px rgba(255,140,0,0.12)}
+.pawns-list{width:100%;display:flex;flex-direction:column;gap:6px}
+.pawn-slot{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:#070707;border:1px solid #222}
+.bottombar{grid-column:1 / span 2;grid-row:2;background:linear-gradient(180deg,#050505,#0c0c0c);border-radius:8px;padding:12px;display:flex;align-items:center;gap:12px}
+.action-text{font-size:16px;color:#fff;font-weight:700;text-align:center;width:100%}
+.footer{position:fixed;right:12px;bottom:6px;color:#666;font-size:12px}
+.small{font-size:13px;padding:6px}
+.export-btn{background:#1b8cff;color:white;border:none;padding:8px;border-radius:8px}
+.header-name{position:absolute;left:16px;top:16px;color:#ffd54a;font-weight:900;font-size:20px;z-index:200}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="board-wrap">
+    <div id="board" class="board" role="img" aria-label="plateau du jeu">
+      <!-- Replace the string below PLATEAU_DATA_URI if you want a fully autonomous file:
+           set PLATEAU_DATA_URI to a data URI: "data:image/png;base64,..." and this <img> src will be set automatically.
+           If you prefer to upload the image in-browser, use the "Charger image du plateau" button in the right panel.
+      -->
+      <img id="board-img" src="" alt="Plateau du jeu" />
+      <!-- 6 pions -->
+      <img id="pawn-1" class="pawn" src="" style="display:none" alt="pawn1">
+      <img id="pawn-2" class="pawn" src="" style="display:none" alt="pawn2">
+      <img id="pawn-3" class="pawn" src="" style="display:none" alt="pawn3">
+      <img id="pawn-4" class="pawn" src="" style="display:none" alt="pawn4">
+      <img id="pawn-5" class="pawn" src="" style="display:none" alt="pawn5">
+      <img id="pawn-6" class="pawn" src="" style="display:none" alt="pawn6">
+      <div id="case-popup" class="case-popup" aria-hidden="true"></div>
+      <div class="header-name">Jeux de Bach</div>
+    </div>
+  </div>
+
+  <aside class="controls-panel" role="complementary">
+    <div class="title">Contrôles</div>
+
+    <div style="width:100%;display:flex;flex-direction:column;gap:6px">
+      <label class="small">Charger image du plateau (optionnel)</label>
+      <input id="plateauFile" type="file" accept="image/*">
+      <div class="small" style="color:#9aa">Option: tu peux aussi coller la base64 dans PLATEAU_DATA_URI dans le code.</div>
+    </div>
+
+    <div style="width:100%;display:flex;gap:8px;align-items:center">
+      <div style="flex:1">
+        <label class="small">Nb joueurs</label><br>
+        <input id="player-count" type="number" min="1" max="6" value="3">
+      </div>
+      <div style="width:90px">
+        <button id="apply-count" class="small">OK</button>
+      </div>
+    </div>
+
+    <div class="pawns-list">
+      <div class="pawn-slot"><div>Joueurs actifs</div><div class="small">Cliquer pour activer/désactiver</div></div>
+      <div class="pawn-slot"><div>1</div><div id="slot-1">inactif</div></div>
+      <div class="pawn-slot"><div>2</div><div id="slot-2">inactif</div></div>
+      <div class="pawn-slot"><div>3</div><div id="slot-3">inactif</div></div>
+      <div class="pawn-slot"><div>4</div><div id="slot-4">inactif</div></div>
+      <div class="pawn-slot"><div>5</div><div id="slot-5">inactif</div></div>
+      <div class="pawn-slot"><div>6</div><div id="slot-6">inactif</div></div>
+    </div>
+
+    <div style="width:100%;display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px">
+      <div id="start-btn" class="start-btn">START</div>
+    </div>
+
+    <div style="width:100%;display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="die" class="dice">🎲</div>
+        <div class="small">Cliquer pour lancer</div>
+      </div>
+      <div>
+        <button id="toggle-music" class="small">🔊</button>
+      </div>
+    </div>
+
+    <div style="width:100%;display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:10px">
+      <button id="exportSingle" class="export-btn">Export single file</button>
+      <button id="showMap" class="small">Voir mapping</button>
+    </div>
+  </aside>
+
+  <div class="bottombar">
+    <div id="actionDisplay" class="action-text">Jeux de Bach — prêt. Choisis Nb joueurs → OK → START.</div>
+  </div>
+</div>
+
+<div id="mappingPanel" style="display:none;position:fixed;left:12px;top:12px;background:rgba(8,8,8,0.95);padding:12px;border-radius:8px;z-index:900;width:420px;max-height:80vh;overflow:auto;color:#ddd">
+  <h3 style="margin-top:0">Mapping cases (édition)</h3>
+  <div id="mappingList" style="display:flex;flex-direction:column;gap:8px"></div>
+  <div style="display:flex;gap:8px;margin-top:8px">
+    <button id="closeMap" class="small">Fermer</button>
+    <button id="autoPlace" class="small">Auto place</button>
+  </div>
+  <div class="small" style="color:#9aa;margin-top:8px">Si tu veux ajuster la position des popups, utilise Auto place puis modifie.</div>
+</div>
+
+<div class="footer">Prototype — Jeux de Bach</div>
+
+<!-- SheetJS optional (not required since mapping is embedded) -->
+<script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+
+<script>
+/* =============
+   IMPORTANT
+   =============
+   If you want a fully autonomous single file, replace PLATEAU_DATA_URI below with your image data URI:
+   Example: const PLATEAU_DATA_URI = "data:image/png;base64,AAAB..."; 
+   Or use the "Charger image du plateau" button in the UI to load it in your browser, then click Export single file.
+*/
+const PLATEAU_DATA_URI = ""; // <-- PASTE data:image/png;base64,... HERE to embed your image now
+
+/* =========================
+   Mapping (cases 1..25) - from your list
+   Each entry: action (bandeau bas), popup (short), sound (keyword)
+   ========================= */
+const caseMapping = {
+  "1":  { action: "Tout le monde se sert a boire !", popup: "santé !", sound: "glass" },
+  "2":  { action: "Fredonne la chanson que te souffle le joueur a ta droite; si les autres joueurs ne trouvent pas tu bois :)", popup: "Met l'ambiance !", sound: "ambience" },
+  "3":  { action: "Embrasse le joueur a ta droite", popup: "smack", sound: "kiss" },
+  "4":  { action: "Pose une colle au joueur de ton choix; s'il perd il boit sinon c'est toi ;)", popup: "Culture G", sound: "ambience" },
+  "5":  { action: "Tout le monde trinque", popup: "tchin tchin", sound: "glass" },
+  "6":  { action: "Echange un vetement avec le joueur a ta gauche et faites un selfie", popup: "Echange", sound: "ambience" },
+  "7":  { action: "Mime ce que te souffle le joueur a droite; si les autres joueurs ne trouvent pas tu bois ;)", popup: "Action!", sound: "clap" },
+  "8":  { action: "—", popup: "", sound: "" },
+  "9":  { action: "Echange ton verre avec le joueur a la droite", popup: "C'est bon... ou pas !", sound: "lounge" },
+  "10": { action: "Désigne ton joueur favori", popup: "Love", sound: "romantic" },
+  "11": { action: "Retour a la case départ !", popup: "AÏE", sound: "fall" },
+  "12": { action: "Dessine ce que te souffle le joueur a ta gauche; si les autres joueurs ne trouvent pas tu bois !", popup: "Draw", sound: "ambience" },
+  "13": { action: "Pose une colle au joueur de ton choix; s'il perd il boit sinon c'est toi ;)", popup: "Culture g", sound: "ambience" },
+  "14": { action: "Embrasse le joueur a ta gauche", popup: "Smak", sound: "kiss" },
+  "15": { action: "Echange un vetement avec le joueur a ta droite et faites un selfie", popup: "Echange", sound: "ambience" },
+  "16": { action: "Passe ton tour ! Et bois un coup tant qu'a faire :)", popup: "stop!", sound: "brake" },
+  "17": { action: "Echange ton verre avec le joueur a ta gauche", popup: "C'est bon...ou pas!", sound: "lounge" },
+  "18": { action: "Dessine ce que te souffle le joueur a ta droite; si les autres joueurs ne trouvent pas tu bois !", popup: "Draw", sound: "ambience" },
+  "19": { action: "avance de trois cases ... je pense que tu avais soif :)", popup: "tchou tchou glou glou", sound: "train" },
+  "20": { action: "Fredonne la chanson que te souffle le joueur a ta gauche; si les autres joueurs ne trouvent pas tu bois :)", popup: "Met l'ambiance !", sound: "humming" },
+  "21": { action: "Pose une question osée au joueur de ton choix; s'il ne répond pas il boit", popup: "Indiscretions", sound: "naughty" },
+  "22": { action: "cul sec !", popup: "glou glou", sound: "bottle" },
+  "23": { action: "mime ce que te souffle le joueur a ta gauche; si les autres joueurs ne trouvent pas tu bois ;)", popup: "Action!", sound: "clap" },
+  "24": { action: "Pose une colle au joueur de ton choix; s'il perd il boit sinon c'est toi ;)", popup: "Culture g", sound: "ambience" },
+  "25": { action: "Tu as gagné le droit de demander le service que tu veux au joueur de ton choix", popup: "winner!!!", sound: "trophy" }
+};
+
+/* Default percent coordinates for 25 cases (you can adjust after testing) */
+let caseCoords = {
+  1:{x:6,y:10},2:{x:28,y:10},3:{x:50,y:10},4:{x:72,y:10},5:{x:92,y:10},
+  16:{x:6,y:26},17:{x:28,y:26},18:{x:50,y:26},19:{x:72,y:26},6:{x:92,y:26},
+  15:{x:6,y:42},24:{x:28,y:42},25:{x:50,y:42},20:{x:72,y:42},7:{x:92,y:42},
+  14:{x:6,y:58},23:{x:28,y:58},22:{x:50,y:58},21:{x:72,y:58},8:{x:92,y:58},
+  13:{x:6,y:74},12:{x:28,y:74},11:{x:50,y:74},10:{x:72,y:74},9:{x:92,y:74}
+};
+
+/* Hosted sounds mapping (public URLs) */
+const hostedSounds = {
+  train: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_e1b2ca1a4a.mp3?filename=train-whistle-6469.mp3',
+  glass: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_0be8f8bd2c.mp3?filename=glass-clink-6855.mp3',
+  lounge: 'https://cdn.pixabay.com/download/audio/2021/10/31/audio_8a9d3f0a28.mp3?filename=ambient-lounge-116058.mp3',
+  bottle: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_6d3e7ed6b4.mp3?filename=liquid-pour-6344.mp3',
+  clap: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_0b5d1a3b9f.mp3?filename=audience-clap-6462.mp3',
+  kiss: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_2b9f7f1a8d.mp3?filename=kiss-6604.mp3',
+  fall: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_7e4a0f4d8e.mp3?filename=fall-6449.mp3',
+  trophy: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_0f1b3f5f9d.mp3?filename=fanfare-6438.mp3',
+  ambience: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_e6f3c3d0a6.mp3?filename=bar-ambient-1-111176.mp3',
+  humming: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_a5c7f6b2d1.mp3?filename=humming-111175.mp3',
+  naughty: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_5a2c3e8b7b.mp3?filename=tease-111174.mp3'
+};
+
+/* State and elements */
+const boardImg = document.getElementById('board-img');
+const pawnEls = {
+  1: document.getElementById('pawn-1'),
+  2: document.getElementById('pawn-2'),
+  3: document.getElementById('pawn-3'),
+  4: document.getElementById('pawn-4'),
+  5: document.getElementById('pawn-5'),
+  6: document.getElementById('pawn-6')
+};
+const plateauInput = document.getElementById('plateauFile');
+const applyCountBtn = document.getElementById('apply-count');
+const startBtn = document.getElementById('start-btn');
+const dieBtn = document.getElementById('die');
+const toggleMusicBtn = document.getElementById('toggle-music');
+const actionDisplay = document.getElementById('actionDisplay');
+const mappingPanel = document.getElementById('mappingPanel');
+const mappingList = document.getElementById('mappingList');
+const exportBtn = document.getElementById('exportSingle');
+
+let activePawns = [];
+let pawnState = {}; for(let i=1;i<=6;i++) pawnState[i] = {caseId:null,onBoard:false};
+let activePlayerTurnIndex = 0;
+let gameStarted = false;
+let muted = false;
+
+/* Music */
+const music = new Audio('https://cdn.pixabay.com/audio/2023/05/17/audio_9f5563b066.mp3');
+music.loop = true; music.volume = 0.35;
+
+/* Pawn SVGs generation (6 colors) */
+const pawnColors = ['#e94e77','#4ecf9f','#4d7cff','#ffd54a','#b86cff','#ff7f50'];
+function makePawnSVG(color,label){
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140"><defs><filter id="g" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity="0.45"/></filter></defs><circle cx="70" cy="52" r="40" fill="${color}" filter="url(#g)"/><rect x="30" y="95" rx="10" width="80" height="18" fill="rgba(0,0,0,0.12)"/><text x="70" y="62" font-size="36" text-anchor="middle" fill="#fff" font-family="Verdana" font-weight="700">${label}</text></svg>`)));
+}
+for(let i=1;i<=6;i++){ pawnEls[i].src = makePawnSVG(pawnColors[i-1], i); pawnEls[i].style.display='none'; }
+
+/* Helpers: place pawns */
+function placePawnOnCase(pawnIndex, caseId){
+  const el = pawnEls[pawnIndex];
+  const coords = caseCoords[caseId];
+  if(!coords){ console.warn('missing coords', caseId); return; }
+  el.style.left = coords.x + '%';
+  el.style.top = coords.y + '%';
+  el.style.display = 'block';
+  pawnState[pawnIndex].caseId = Number(caseId);
+  pawnState[pawnIndex].onBoard = true;
+}
+function placePawnOffboard(pawnIndex, order){
+  const el = pawnEls[pawnIndex];
+  const x = 94;
+  const y = 6 + order*11;
+  el.style.left = x + '%';
+  el.style.top = y + '%';
+  el.style.display = 'block';
+  pawnState[pawnIndex].caseId = null;
+  pawnState[pawnIndex].onBoard = false;
+}
+function resetPawnsOffboard(){ for(let i=1;i<=6;i++) placePawnOffboard(i,i-1); }
+resetPawnsOffboard();
+
+/* Apply player count */
+document.getElementById('apply-count').addEventListener('click', ()=>{
+  const pc = parseInt(document.getElementById('player-count').value,10) || 1;
+  activePawns = [];
+  for(let i=1;i<=pc;i++) activePawns.push(i);
+  for(let i=1;i<=6;i++){
+    const slot = document.getElementById('slot-'+i);
+    if(slot) slot.textContent = (i<=pc)?'actif':'inactif';
+  }
+  if(caseCoords[1]){
+    for(let i=1;i<=6;i++){
+      if(i<=pc) placePawnOnCase(i,1);
+      else placePawnOffboard(i,i-1);
+    }
+    actionDisplay.textContent = `Prêt pour ${pc} joueur(s). Pions placés sur DEPART.`;
+  } else {
+    resetPawnsOffboard();
+    actionDisplay.textContent = `Définit la coord DEPART (1).`;
+  }
+});
+
+/* Slots toggles */
+for(let i=1;i<=6;i++){
+  const el = document.getElementById('slot-'+i);
+  if(!el) continue;
+  el.addEventListener('click', ()=>{
+    const active = activePawns.includes(i);
+    if(active){ activePawns = activePawns.filter(x=>x!==i); el.textContent='inactif'; placePawnOffboard(i,i-1); }
+    else { activePawns.push(i); el.textContent='actif'; placePawnOnCase(i,1); }
+  });
+}
+
+/* Start */
+startBtn.addEventListener('click', ()=>{
+  if(activePawns.length===0){ activePawns=[1,2,3]; document.getElementById('slot-1').textContent='actif'; document.getElementById('slot-2').textContent='actif'; document.getElementById('slot-3').textContent='actif'; }
+  activePlayerTurnIndex = 0; gameStarted = true;
+  actionDisplay.textContent = `Jeu démarré. Joueur ${activePawns[activePlayerTurnIndex]} commence.`;
+  music.play().catch(()=>{});
+  // trigger depart action immediately
+  if(caseMapping['1']){
+    showPopupCenter(caseMapping['1'].popup || '', 3000, ()=>{ playSoundKeyword(caseMapping['1'].sound); });
+    actionDisplay.textContent = caseMapping['1'].action || actionDisplay.textContent;
+  }
+});
+
+/* Dice */
+function rollDiceVisual(el){ el.classList.add('spin'); setTimeout(()=>el.classList.remove('spin'),800); }
+dieBtn.addEventListener('click', (e)=>{
+  if(!gameStarted){ actionDisplay.textContent = "Clique START avant de lancer les dés."; return; }
+  if(activePawns.length===0){ actionDisplay.textContent = "Sélectionne des pions."; return; }
+  const val = 1 + Math.floor(Math.random()*6);
+  rollDiceVisual(e.currentTarget);
+  setTimeout(()=>{
+    const pawnIndex = activePawns[activePlayerTurnIndex];
+    actionDisplay.textContent = `Dé: ${val} — Joueur ${pawnIndex} avance.`;
+    movePawnBy(pawnIndex, val);
+    activePlayerTurnIndex = (activePlayerTurnIndex + 1) % activePawns.length;
+  }, 600);
+});
+
+/* Movement logic */
+function movePawnBy(pawnIndex, n){
+  const current = pawnState[pawnIndex].caseId || 1;
+  const dest = current + n;
+  if(caseMapping[String(dest)]){
+    placePawnOnCase(pawnIndex, dest);
+    const info = caseMapping[String(dest)];
+    showPopupCenter(info.popup || '', 3000, ()=>{ playSoundKeyword(info.sound); });
+    actionDisplay.textContent = info.action || `Case ${dest}`;
+    // special rules:
+    if(String(dest) === '19'){
+      setTimeout(()=>{ const after = dest + 3; if(caseCoords[after]){ placePawnOnCase(pawnIndex, after); const inf2 = caseMapping[String(after)]||{}; showPopupCenter(inf2.popup||'', 3000, ()=>playSoundKeyword(inf2.sound)); actionDisplay.textContent = inf2.action||actionDisplay.textContent; } }, 900);
+    } else if(String(dest) === '11'){
+      setTimeout(()=>{ placePawnOnCase(pawnIndex, 1); const inf2 = caseMapping['1']||{}; showPopupCenter(inf2.popup||'', 3000, ()=>playSoundKeyword(inf2.sound)); actionDisplay.textContent = inf2.action||actionDisplay.textContent; }, 900);
+    }
+  } else if(caseCoords[dest]){
+    placePawnOnCase(pawnIndex, dest);
+    const info = caseMapping[String(dest)]||{};
+    actionDisplay.textContent = info.action || `Le pion ${pawnIndex} avance à la case ${dest}.`;
+    if(info.popup) showPopupCenter(info.popup, 3000, ()=>playSoundKeyword(info.sound));
+  } else {
+    // wrap to 1
+    placePawnOnCase(pawnIndex, 1);
+    actionDisplay.textContent = `Le pion ${pawnIndex} revient au départ.`;
+  }
+}
+
+/* Popup centered */
+function showPopupCenter(text, duration=3000, cb){
+  const popup = document.getElementById('case-popup');
+  popup.textContent = text || '';
+  popup.style.display = 'block';
+  popup.style.transform = 'translate(-50%,-50%) scale(1.03)';
+  popup.style.opacity = '1';
+  setTimeout(()=>{ popup.style.transform = 'translate(-50%,-50%) scale(0.9)'; popup.style.opacity = '0'; setTimeout(()=>{ popup.style.display='none'; if(cb) cb(); }, 300); }, duration);
+}
+
+/* Sound playing */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function ensureAudioCtx(){ if(!audioCtx) audioCtx = new AudioCtx(); }
+function playTrainSynth(){ ensureAudioCtx(); const now=audioCtx.currentTime; const g=audioCtx.createGain(); g.gain.value=0.8; g.connect(audioCtx.destination); const o=audioCtx.createOscillator(); o.type='sawtooth'; const f=audioCtx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=900; o.connect(f); f.connect(g); o.frequency.setValueAtTime(150,now); o.frequency.linearRampToValueAtTime(400,now+0.12); g.gain.setValueAtTime(0.0001,now); g.gain.linearRampToValueAtTime(0.7,now+0.02); g.gain.exponentialRampToValueAtTime(0.0001,now+1.2); o.start(now); o.stop(now+1.2); }
+function playPop(){ ensureAudioCtx(); const now=audioCtx.currentTime; const o=audioCtx.createOscillator(); o.type='square'; o.frequency.value=1200; const g=audioCtx.createGain(); g.gain.value=1; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.0001,now); g.gain.linearRampToValueAtTime(0.8,now+0.01); g.gain.exponentialRampToValueAtTime(0.0001,now+0.18); o.start(now); o.stop(now+0.18); }
+function playSoundKeyword(k){
+  if(!k) return;
+  const key = (k||'').toLowerCase();
+  if(hostedSounds[key]){ const a=new Audio(hostedSounds[key]); a.volume=0.9; a.play().catch(()=>{}); return; }
+  if(key.includes('train')||key.includes('tchou')) return playTrainSynth();
+  if(key.includes('glass')||key.includes('trinque')||key.includes('bottle')){ const a=new Audio(hostedSounds['glass']); a.play().catch(()=>{}); return; }
+  if(key.includes('clap')){ const a=new Audio(hostedSounds['clap']); a.play().catch(()=>{}); return; }
+  if(key.includes('kiss')){ const a=new Audio(hostedSounds['kiss']||hostedSounds['ambience']); a.play().catch(()=>{}); return; }
+  playPop();
+}
+
+/* Toggle music button */
+toggleMusicBtn.addEventListener('click', ()=>{
+  muted = !muted;
+  if(muted){ music.pause(); toggleMusicBtn.textContent='🔇'; }
+  else { music.play().catch(()=>{}); toggleMusicBtn.textContent='🔊'; }
+});
+
+/* Load plateau from PLATEAU_DATA_URI or file input */
+if(PLATEAU_DATA_URI && PLATEAU_DATA_URI.length>10) boardImg.src = PLATEAU_DATA_URI;
+
+document.getElementById('plateauFile').addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = function(e){ boardImg.src = e.target.result; setTimeout(()=>{ actionDisplay.textContent='Plateau chargé.'; },200); };
+  reader.readAsDataURL(f);
+});
+
+/* Build mapping UI */
+function buildMappingUI(){
+  const list = document.getElementById('mappingList'); list.innerHTML='';
+  const keys = Object.keys(caseMapping).sort((a,b)=>Number(a)-Number(b));
+  for(const k of keys){
+    const info = caseMapping[k];
+    const row = document.createElement('div');
+    row.style.display='flex'; row.style.gap='8px'; row.style.alignItems='center'; row.style.marginBottom='8px';
+    const id = document.createElement('div'); id.style.width='44px'; id.style.color='#ddd'; id.textContent=k;
+    const a = document.createElement('input'); a.style.flex='1'; a.value = info.action || '';
+    const p = document.createElement('input'); p.style.flex='1'; p.value = info.popup || '';
+    const s = document.createElement('select'); s.innerHTML = '<option>pop</option><option>train</option><option>glass</option><option>lounge</option><option>bottle</option><option>clap</option><option>kiss</option>'; s.value = info.sound || 'pop';
+    a.addEventListener('input', ()=>caseMapping[k].action = a.value);
+    p.addEventListener('input', ()=>caseMapping[k].popup = p.value);
+    s.addEventListener('change', ()=>caseMapping[k].sound = s.value);
+    row.appendChild(id); row.appendChild(a); row.appendChild(p); row.appendChild(s); list.appendChild(row);
+  }
+}
+document.getElementById('closeMap').addEventListener('click', ()=> document.getElementById('mappingPanel').style.display='none');
+document.getElementById('showMap').addEventListener('click', ()=> document.getElementById('mappingPanel').style.display='block');
+
+/* Export single file: embeds current plate image and mapping into a downloadable HTML */
+document.getElementById('exportSingle').addEventListener('click', ()=>{
+  const currentSrc = document.getElementById('board-img').src || PLATEAU_DATA_URI;
+  if(!currentSrc || currentSrc.length<20){ alert("Aucun plateau trouvé. Charge l'image (bouton) ou collez la data URI dans le code."); return; }
+  const finalHtml = generateStandalone(currentSrc);
+  const blob = new Blob([finalHtml], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'jeux_de_bach_autonome.html'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 2000);
+  alert('Fichier autonome généré et téléchargé (jeux_de_bach_autonome.html).');
+});
+
+/* generate final minimal standalone HTML (includes mapping and coords) */
+function generateStandalone(plateauDataURI){
+  const mappingJson = JSON.stringify(caseMapping);
+  const coordsJson = JSON.stringify(caseCoords);
+  const pawnSvgs = [];
+  for(let i=1;i<=6;i++) pawnSvgs.push(pawnEls[i].src);
+  const hostedJson = JSON.stringify(hostedSounds);
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Jeux de Bach - autonome</title><style>body{margin:0;font-family:Inter,Arial;background:#000;color:#fff}img{max-width:100%}</style></head><body><div id="root"><img src="${plateauDataURI}" alt="plateau"></div><script>const caseMapping=${mappingJson};const caseCoords=${coordsJson};const pawnSvgs=${JSON.stringify(pawnSvgs)};const hostedSounds=${hostedJson};console.log('Autonome ready');</script></body></html>`;
+}
+
+/* Build UI mapping at start */
+buildMappingUI();
+
+</script>
+</body>
+</html>
