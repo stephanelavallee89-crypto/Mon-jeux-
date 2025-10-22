@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Jeu de plateau</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; background: #222; color: #fff; }
+  #plateau { position: relative; width: 600px; height: 600px; margin: 20px auto; background: url('https://raw.githubusercontent.com/stephanelavallee89-crypto/Mon-jeux-/main/plateau%20jeux.jpg') no-repeat center/contain; }
+  .pion { width: 40px; height: 40px; border-radius: 50%; position: absolute; text-align:center; line-height:40px; font-size:20px; font-weight:bold; }
+  #bandeau { width: 600px; margin: 10px auto; background: #000; padding: 10px; min-height: 60px; position: relative; text-align:center; font-size:16px; }
+  #controls { width: 600px; margin: 10px auto; text-align:center; }
+  button { margin: 5px; padding: 5px 10px; }
+  #popup { position: absolute; background: rgba(0,0,0,0.9); padding: 20px; border-radius: 10px; display:none; color:#fff; font-size:20px; text-align:center; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  #de-container { display:inline-block; margin-left:20px; font-size:20px; }
+  #tour-joueur { display:inline-block; margin-left:20px; font-size:20px; }
+</style>
+</head>
+<body>
+
+<div id="plateau"></div>
+<div id="bandeau">Bienvenue ! Cliquez sur Start pour commencer.</div>
+<div id="controls">
+  Joueurs: 
+  <select id="nb-joueurs">
+    <option value="1">1</option>
+    <option value="2">2</option>
+    <option value="3">3</option>
+    <option value="4">4</option>
+    <option value="5">5</option>
+    <option value="6">6</option>
+  </select>
+  <button id="start">Start</button>
+  <button id="lancer-de">Lancer Dé</button>
+  <button id="perdu">Perdu</button>
+  <button id="fin-tour">Fin de tour</button>
+  <button id="reset">Reset</button>
+  <div id="de-container">Dé: 0</div>
+  <div id="tour-joueur">Tour: -</div>
+</div>
+
+<div id="popup"></div>
+
+<script>
+const positions = {
+  1: {x:0, y:0}, 2:{x:120,y:0},3:{x:240,y:0},4:{x:360,y:0},5:{x:480,y:0},
+  6:{x:480,y:120},7:{x:480,y:240},8:{x:480,y:360},9:{x:480,y:480},10:{x:360,y:480},
+  11:{x:240,y:480},12:{x:120,y:480},13:{x:0,y:480},14:{x:0,y:360},15:{x:0,y:240},
+  16:{x:0,y:120},17:{x:120,y:120},18:{x:240,y:120},19:{x:360,y:120},20:{x:360,y:240},
+  21:{x:360,y:360},22:{x:240,y:360},23:{x:120,y:360},24:{x:120,y:240},25:{x:240,y:240}
+};
+
+const actions = {
+  1: {texte:"Tout le monde se sert à boire !", pop:"Santé !"},
+  2: {texte:"Fredonne la chanson que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois et recule de 3 cases :)", pop:"Met l'ambiance !"},
+  3: {texte:"Embrasse le joueur à ta droite", pop:"Smack"},
+  4: {texte:"Pose une colle au joueur de ton choix s'il perd il boit sinon c'est toi et recule de 3 cases ;)", pop:"Culture G"},
+  5: {texte:"Tout le monde trinque", pop:"Tchin Tchin"},
+  6: {texte:"Echange un vêtement avec le joueur à ta gauche et faites un selfie", pop:"Echange"},
+  7: {texte:"Mime ce que te souffle le joueur de droite, si les autres joueurs ne trouvent pas tu bois et recule de 3 cases ;)", pop:"Action !"},
+  9: {texte:"Echange ton verre avec le joueur à ta droite", pop:"C'est bon... ou pas !"},
+  10:{texte:"Désigne ton joueur favori", pop:"Love"},
+  11:{texte:"Retour à la case départ !", pop:"AÏE"},
+  12:{texte:"Dessine ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois et recule de 3 cases !", pop:"Draw"},
+  13:{texte:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi et recule de 3 cases ;)", pop:"Culture G"},
+  14:{texte:"Embrasse le joueur à ta gauche", pop:"Smak"},
+  15:{texte:"Echange un vêtement avec le joueur à ta droite et faites un selfie", pop:"Echange"},
+  16:{texte:"Passe ton tour ! Et bois un coup tant qu'à faire :)", pop:"Stop !"},
+  17:{texte:"Echange ton verre avec le joueur à ta gauche", pop:"C'est bon... ou pas !"},
+  18:{texte:"Dessine ce que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois et recule de 3 cases !", pop:"Draw"},
+  19:{texte:"Avance de trois cases ... je pense que tu avais soif :)", pop:"Tchou tchou glou glou"},
+  20:{texte:"Fredonne la chanson que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois et recule de 3 cases :)", pop:"Met l'ambiance !"},
+  21:{texte:"Pose une question osée au joueur de ton choix s'il ne répond pas il boit et recule de 3 cases", pop:"Indiscretions"},
+  22:{texte:"Cul sec !", pop:"Glou Glou"},
+  23:{texte:"Mime ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois et recule de 3 cases ;)", pop:"Action !"},
+  24:{texte:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi et recule de 3 cases ;)", pop:"Culture G"},
+  25:{texte:"Tu as gagné le droit de demander le service que tu veux au joueur de ton choix", pop:"Winner !!!"}
+};
+
+let joueurs = [];
+let nbJoueurs = 0;
+let tour = 0;
+let positionsJoueurs = {};
+let passeTour = {};
+
+const plateau = document.getElementById("plateau");
+const bandeau = document.getElementById("bandeau");
+const popup = document.getElementById("popup");
+const deContainer = document.getElementById("de-container");
+const tourContainer = document.getElementById("tour-joueur");
+const boutonPerdu = document.getElementById("perdu");
+const boutonFinTour = document.getElementById("fin-tour");
+
+document.getElementById("start").addEventListener("click",()=>{
+  nbJoueurs = parseInt(document.getElementById("nb-joueurs").value);
+  plateau.innerHTML="";
+  joueurs=[];
+  positionsJoueurs={};
+  passeTour={};
+  for(let i=1;i<=nbJoueurs;i++){
+    const pion = document.createElement("div");
+    pion.classList.add("pion");
+    pion.style.backgroundColor=`hsl(${i*60},70%,50%)`;
+    pion.textContent=i;
+    plateau.appendChild(pion);
+    joueurs.push(pion);
+    positionsJoueurs[i]=1;
+    passeTour[i]=false;
+    pion.style.left = positions[1].x + i*10 + "px";
+    pion.style.top = positions[1].y + i*10 + "px";
+  }
+  tour=1;
+  tourContainer.textContent = "Tour: Joueur "+tour;
+  afficherAction(1);
+});
+
+function afficherAction(caseNum){
+  bandeau.textContent = actions[caseNum]?.texte || "";
+  popup.textContent = actions[caseNum]?.pop || "";
+  popup.style.display="block";
+  setTimeout(()=>{popup.style.display="none";},4000); // 4 secondes
+}
+function avancerJoueur(joueur, nbCases){
+  let pos = positionsJoueurs[joueur];
+  let newPos = pos + nbCases;
+
+  // Cas spécial case 19 : avance automatiquement de 3 cases
+  if(pos === 19) newPos = pos + 3;
+  if(newPos > 25) newPos = 25;
+  if(newPos === 11) newPos = 1; // retour départ
+
+  positionsJoueurs[joueur] = newPos;
+  const pion = joueurs[joueur-1];
+  pion.style.left = positions[newPos].x + joueur*10 + "px";
+  pion.style.top = positions[newPos].y + joueur*10 + "px";
+
+  // passe ton tour
+  if(actions[newPos]?.texte.includes("Passe ton tour")) passeTour[joueur] = true;
+
+  afficherAction(newPos);
+}
+
+document.getElementById("lancer-de").addEventListener("click",()=>{
+  if(nbJoueurs==0) return;
+  if(passeTour[tour]){
+    passeTour[tour]=false;
+    tour = (tour%nbJoueurs)+1;
+    tourContainer.textContent = "Tour: Joueur "+tour;
+    return;
+  }
+  const de = Math.floor(Math.random()*6)+1;
+  deContainer.textContent = "Dé: "+de;
+  avancerJoueur(tour, de);
+});
+
+boutonPerdu.addEventListener("click",()=>{
+  if(nbJoueurs==0) return;
+  const joueur = tour; // le joueur actuel recule
+  positionsJoueurs[joueur] = Math.max(1, positionsJoueurs[joueur]-3);
+  const pion = joueurs[joueur-1];
+  let newPos = positionsJoueurs[joueur];
+  pion.style.left = positions[newPos].x + joueur*10 + "px";
+  pion.style.top = positions[newPos].y + joueur*10 + "px";
+  afficherAction(newPos);
+});
+
+boutonFinTour.addEventListener("click",()=>{
+  if(nbJoueurs==0) return;
+  tour = (tour%nbJoueurs)+1;
+  tourContainer.textContent = "Tour: Joueur "+tour;
+});
+
+document.getElementById("reset").addEventListener("click",()=>{
+  plateau.innerHTML="";
+  bandeau.textContent="Bienvenue ! Cliquez sur Start pour commencer.";
+  deContainer.textContent="Dé: 0";
+  tourContainer.textContent="Tour: -";
+});
+</script>
+</body>
+</html>
