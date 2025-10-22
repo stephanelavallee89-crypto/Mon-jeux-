@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Jeu de plateau</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; background: #222; color: #fff; }
+  #plateau { position: relative; width: 600px; height: 600px; margin: 20px auto; background: url('https://raw.githubusercontent.com/stephanelavallee89-crypto/Mon-jeux-/main/plateau%20jeux.jpg') no-repeat center/contain; }
+  .pion { width: 40px; height: 40px; border-radius: 50%; position: absolute; text-align:center; line-height:40px; font-size:20px; font-weight:bold; transition:left 300ms, top 300ms; }
+  #bandeau { width: 600px; margin: 10px auto; background: #000; padding: 10px; min-height: 60px; text-align:center; font-size:16px; }
+  #controls { width: 600px; margin: 10px auto; text-align:center; }
+  button { margin: 5px; padding: 6px 12px; }
+  #popup { position: absolute; background: rgba(0,0,0,0.95); padding: 18px 22px; border-radius: 10px; display:none; color:#fff; font-size:20px; text-align:center; left:50%; top:50%; transform:translate(-50%,-50%); max-width: 80%; }
+  #de-container { display:inline-block; margin-left:12px; font-size:18px; vertical-align: middle; }
+  #tour-joueur { display:inline-block; margin-left:12px; font-size:18px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<div id="plateau" aria-hidden="true"></div>
+<div id="bandeau">Bienvenue ! Cliquez sur Start pour commencer.</div>
+
+<div id="controls">
+  Joueurs:
+  <select id="nb-joueurs">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+    <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+  </select>
+  <button id="start">Start</button>
+  <button id="lancer-de">Lancer Dé</button>
+  <button id="perdu">Perdu</button>
+  <button id="fin-tour">Fin de tour</button>
+  <button id="reset">Reset</button>
+  <span id="de-container">Dé: 0</span>
+  <span id="tour-joueur">Tour: -</span>
+</div>
+
+<div id="popup" role="status" aria-live="polite"></div>
+
+<script>
+/* positions correspondant à ta grille (1 en haut-left, spirale jusqu'à 25 centre) */
+const positions = {
+  1:{x:0,y:0},2:{x:120,y:0},3:{x:240,y:0},4:{x:360,y:0},5:{x:480,y:0},
+  6:{x:480,y:120},7:{x:480,y:240},8:{x:480,y:360},9:{x:480,y:480},10:{x:360,y:480},
+  11:{x:240,y:480},12:{x:120,y:480},13:{x:0,y:480},14:{x:0,y:360},15:{x:0,y:240},
+  16:{x:0,y:120},17:{x:120,y:120},18:{x:240,y:120},19:{x:360,y:120},20:{x:360,y:240},
+  21:{x:360,y:360},22:{x:240,y:360},23:{x:120,y:360},24:{x:120,y:240},25:{x:240,y:240}
+};
+
+const actions = {
+  1:{texte:"Tout le monde se sert à boire !", pop:"Santé !"},
+  2:{texte:"Fredonne la chanson que te souffle le joueur à ta droite si les autres joueurs ne trouvent pas tu bois et recule de 3 cases :)", pop:"Met l'ambiance !"},
+  3:{texte:"Embrasse le joueur à ta droite", pop:"Smack"},
+  4:{texte:"Pose une colle au joueur de ton choix s'il perd il boit sinon c'est toi et recule de 3 cases ;)", pop:"Culture G"},
+  5:{texte:"Tout le monde trinque", pop:"Tchin Tchin"},
+  6:{texte:"Echange un vêtement avec le joueur à ta gauche et faites un selfie", pop:"Echange"},
+  7:{texte:"Mime ce que te souffle le joueur de droite, si les autres joueurs ne trouvent pas tu bois et recule de 3 cases ;)", pop:"Action !"},
+  8:{texte:"Choisis le joueur qui doit te faire un massage", pop:"Zen"},
+  9:{texte:"Echange ton verre avec le joueur à ta droite", pop:"C'est bon... ou pas !"},
+  10:{texte:"Désigne ton joueur favori", pop:"Love"},
+  11:{texte:"Retour à la case départ !", pop:"AÏE"},
+  12:{texte:"Dessine ce que te souffle le joueur à ta gauche, si les autres joueurs ne trouvent pas tu bois et recule de 3 cases !", pop:"Draw"},
+  13:{texte:"Pose une colle au joueur de ton choix, si il perd il boit sinon c'est toi ;)", pop:"Culture G"},
+  14:{texte:"Embrasse le joueur à ta gauche", pop:"Smak"},
+  15:{texte:"Echange un vêtement avec le joueur à ta droite et faites un selfie", pop:"Echange"},
+  16:{texte:"Passe ton tour ! Et bois un coup tant qu'à faire :)", pop:"Stop !"},
+  17:{texte:"Echange ton verre avec le joueur à ta gauche", pop:"C'est bon... ou pas !"},
+  18:{texte:"Dessine ce que te souffle le joueur à ta droite, si les autres joueurs ne trouvent pas tu bois et recule de 3 cases !", pop:"Draw"},
+  19:{texte:"Avance de trois cases ... je pense que tu avais soif :)", pop:"Tchou tchou glou glou"},
+  20:{texte:"Fredonne la chanson que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois et recule de 3 cases :)", pop:"Met l'ambiance !"},
+  21:{texte:"Pose une question osée au joueur de ton choix s'il ne répond pas il boit et recule de 3 cases", pop:"Indiscretions"},
+  22:{texte:"Cul sec !", pop:"Glou Glou"},
+  23:{texte:"Mime ce que te souffle le joueur à ta gauche si les autres joueurs ne trouvent pas tu bois et recule de 3 cases ;)", pop:"Action !"},
+  24:{texte:"Pose une colle au joueur de ton choix si il perd il boit sinon c'est toi ;)", pop:"Culture G"},
+  25:{texte:"Tu as gagné le droit de demander le service que tu veux au joueur de ton choix", pop:"Winner !!!"}
+};
+
+let joueurs = [], nbJoueurs = 0, tour = 0;
+let positionsJoueurs = {}, passeTour = {};
+
+const plateau = document.getElementById('plateau');
+const bandeau = document.getElementById('bandeau');
+const popup = document.getElementById('popup');
+const deContainer = document.getElementById('de-container');
+const tourContainer = document.getElementById('tour-joueur');
+const boutonPerdu = document.getElementById('perdu');
+const boutonFinTour = document.getElementById('fin-tour');
+
+/* START : place les pions sur la case 1 */
+document.getElementById('start').addEventListener('click', ()=>{
+  nbJoueurs = parseInt(document.getElementById('nb-joueurs').value,10);
+  plateau.innerHTML = '';
+  joueurs = [];
+  positionsJoueurs = {};
+  passeTour = {};
+  for(let i=1;i<=nbJoueurs;i++){
+    const pion = document.createElement('div');
+    pion.classList.add('pion');
+    pion.style.backgroundColor = `hsl(${i*60},70%,50%)`;
+    pion.textContent = i;
+    plateau.appendChild(pion);
+    joueurs.push(pion);
+    positionsJoueurs[i] = 1;
+    passeTour[i] = false;
+    // léger offset pour éviter chevauchement
+    pion.style.left = (positions[1].x + i*12) + 'px';
+    pion.style.top  = (positions[1].y + i*12) + 'px';
+  }
+  tour = 1;
+  tourContainer.textContent = 'Tour: Joueur '+tour;
+  afficherAction(1);
+});
+
+/* afficher bandeau + popup (popup centré) */
+function afficherAction(caseNum){
+  bandeau.textContent = actions[caseNum]?.texte || '';
+  popup.textContent = actions[caseNum]?.pop || '';
+  popup.style.left = '50%';
+  popup.style.top = '50%';
+  popup.style.display = 'block';
+  // popup visible 4s
+  clearTimeout(popup._hideTimeout);
+  popup._hideTimeout = setTimeout(()=>{ popup.style.display='none'; }, 4000);
+}
+
+/* avancerJoueur : calcule la nouvelle position, gère case19 (train) et case11 (puit).
+   IMPORTANT : on vérifie l'atterrissage sur 19 (newPos), on affiche popup de 19,
+   puis on attend 800ms et on avance de 3 cases pour déclencher l'action finale. */
+function avancerJoueur(joueur, nbCases){
+  let pos = positionsJoueurs[joueur];
+  let newPos = pos + nbCases;
+
+  if(newPos > 25) newPos = 25;       // règle : dépassement = arrive en 25
+  if(newPos === 11) {                // puit : retour départ (immédiat)
+    positionsJoueurs[joueur] = 1;
+    movePionTo(joueur,1);
+    afficherAction(1);
+    return;
+  }
+
+  // si on atterrit sur 19, on doit d'abord afficher la 19, puis avancer de 3 cases
+  if(newPos === 19){
+    // place d'abord sur 19 (visuel), affiche action 19
+    positionsJoueurs[joueur] = 19;
+    movePionTo(joueur,19);
+    afficherAction(19);
+    // après 800ms, avancer de 3 cases (max 25) et déclencher action de la case d'arrivée
+    setTimeout(()=>{
+      let target = positionsJoueurs[joueur] + 3;
+      if(target > 25) target = 25;
+      if(target === 11) { positionsJoueurs[joueur] = 1; movePionTo(joueur,1); afficherAction(1); return; }
+      positionsJoueurs[joueur] = target;
+      movePionTo(joueur,target);
+      afficherAction(target);
+    }, 800);
+    return;
+  }
+
+  // sinon déplacement normal
+  positionsJoueurs[joueur] = newPos;
+  movePionTo(joueur,newPos);
+  // si on tombe sur le puit après mouvement (déjà géré avant), sinon check passe-tour
+  if(actions[newPos]?.texte && actions[newPos].texte.includes('Passe ton tour')) {
+    passeTour[joueur] = true;
+  }
+  afficherAction(newPos);
+}
+
+/* utilitaire de position visuelle (centre + léger offset selon joueur) */
+function movePionTo(joueur, caseNum){
+  const pion = joueurs[joueur-1];
+  const pos = positions[caseNum];
+  // offset pour ne pas chevaucher
+  const offset = (joueur-1)*12;
+  pion.style.left = (pos.x + offset) + 'px';
+  pion.style.top  = (pos.y + offset) + 'px';
+}
+
+/* lancer dé : NE PAS passer automatiquement au joueur suivant (tu as fin-tour pour ça) */
+document.getElementById('lancer-de').addEventListener('click', ()=>{
+  if(nbJoueurs === 0) return;
+  if(passeTour[tour]){  // si on doit passer le tour (case 16)
+    passeTour[tour] = false;
+    // on ne fait pas de déplacement, mais on passe au suivant
+    tour = (tour % nbJoueurs) + 1;
+    tourContainer.textContent = 'Tour: Joueur '+tour;
+    deContainer.textContent = 'Dé: 0';
+    return;
+  }
+  const de = Math.floor(Math.random()*6)+1;
+  deContainer.textContent = 'Dé: '+de;
+  // avancer pour le joueur courant (tour)
+  avancerJoueur(tour, de);
+});
+
+/* Bouton Perdu : recule le JOUEUR COURANT de 3 cases (ne change pas le tour) */
+boutonPerdu.addEventListener('click', ()=>{
+  if(nbJoueurs === 0) return;
+  const joueurActuel = tour;
+  const cur = positionsJoueurs[joueurActuel] || 1;
+  let target = Math.max(1, cur - 3);
+  // si on recule dans le puit -> renvoie au départ (déjà 1), sinon positionner
+  positionsJoueurs[joueurActuel] = target;
+  movePionTo(joueurActuel, target);
+  afficherAction(target);
+});
+
+/* Fin de tour : passer au joueur suivant (sans lancer le dé ni bouger le pion) */
+boutonFinTour.addEventListener('click', ()=>{
+  if(nbJoueurs === 0) return;
+  tour = (tour % nbJoueurs) + 1;
+  tourContainer.textContent = 'Tour: Joueur '+tour;
+  deContainer.textContent = 'Dé: 0';
+});
+
+/* Reset complet */
+document.getElementById('reset').addEventListener('click', ()=>{
+  plateau.innerHTML = '';
+  bandeau.textContent = 'Bienvenue ! Cliquez sur Start pour commencer.';
+  deContainer.textContent = 'Dé: 0';
+  tourContainer.textContent = 'Tour: -';
+  joueurs = []; nbJoueurs = 0; tour = 0; positionsJoueurs = {}; passeTour = {};
+});
+</script>
+</body>
+</html>
